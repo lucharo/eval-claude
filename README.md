@@ -1,13 +1,13 @@
-# inspect-claude-code
+# eval-claude
 
-[inspect_ai](https://inspect.aisi.org.uk/) provider that runs evals through the **Claude Code CLI** — use your Claude Pro/Max/Team subscription instead of per-token API billing.
+Run [inspect_ai](https://inspect.aisi.org.uk/) evals through the **Claude Code CLI** — use your Claude Pro/Max/Team subscription instead of per-token API billing.
 
 Based on [UKGovernmentBEIS/inspect_ai#2986](https://github.com/UKGovernmentBEIS/inspect_ai/pull/2986), extracted as a standalone pip-installable package.
 
 ## Install
 
 ```bash
-pip install inspect-claude-code
+pip install eval-claude
 ```
 
 Or from source:
@@ -15,6 +15,8 @@ Or from source:
 ```bash
 pip install -e .
 ```
+
+This installs both `inspect_ai` and `inspect_evals` (standard benchmark suite) as dependencies.
 
 ### Prerequisites
 

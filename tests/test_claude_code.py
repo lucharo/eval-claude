@@ -15,7 +15,7 @@ from inspect_ai.model._chat_message import (
     ChatMessageSystem,
     ChatMessageUser,
 )
-from inspect_claude_code._provider import (
+from eval_claude._provider import (
     THINKING_LEVELS,
     ClaudeCodeAPI,
     find_claude_cli,
@@ -31,7 +31,7 @@ from inspect_claude_code._provider import (
 def mock_cli_path():
     """Mock find_claude_cli to return a fake path."""
     with patch(
-        "inspect_claude_code._provider.find_claude_cli",
+        "eval_claude._provider.find_claude_cli",
         return_value="/usr/bin/claude",
     ):
         yield
@@ -321,7 +321,7 @@ async def test_e2e_successful_generation(mock_cli_path, sample_json_response):
     api = ClaudeCodeAPI(model_name="sonnet")
 
     with patch(
-        "inspect_claude_code._provider.subprocess.run"
+        "eval_claude._provider.subprocess.run"
     ) as mock_subprocess:
         mock_subprocess.return_value = MagicMock(
             returncode=0,
@@ -363,7 +363,7 @@ async def test_e2e_cli_error_propagates(mock_cli_path):
     api = ClaudeCodeAPI(model_name="sonnet")
 
     with patch(
-        "inspect_claude_code._provider.subprocess.run"
+        "eval_claude._provider.subprocess.run"
     ) as mock_subprocess:
         mock_subprocess.return_value = MagicMock(
             returncode=1,
@@ -389,7 +389,7 @@ async def test_e2e_timeout_handling(mock_cli_path):
     api = ClaudeCodeAPI(model_name="sonnet", timeout=10)
 
     with patch(
-        "inspect_claude_code._provider.subprocess.run"
+        "eval_claude._provider.subprocess.run"
     ) as mock_subprocess:
         mock_subprocess.side_effect = subprocess.TimeoutExpired(
             cmd="claude", timeout=10
@@ -414,7 +414,7 @@ async def test_e2e_with_thinking_level(mock_cli_path, sample_json_response):
     api = ClaudeCodeAPI(model_name="sonnet", thinking_level="ultrathink")
 
     with patch(
-        "inspect_claude_code._provider.subprocess.run"
+        "eval_claude._provider.subprocess.run"
     ) as mock_subprocess:
         mock_subprocess.return_value = MagicMock(
             returncode=0,
@@ -451,7 +451,7 @@ async def test_e2e_error_response_from_api(mock_cli_path):
     }
 
     with patch(
-        "inspect_claude_code._provider.subprocess.run"
+        "eval_claude._provider.subprocess.run"
     ) as mock_subprocess:
         mock_subprocess.return_value = MagicMock(
             returncode=0,
