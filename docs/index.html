@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>eval-claude: Claude Model Benchmarks</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, monospace;
+            background: #0d1117;
+            color: #c9d1d9;
+            padding: 2rem;
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        h1 { color: #f0f6fc; margin-bottom: 0.25rem; font-size: 1.5rem; }
+        .subtitle { color: #8b949e; margin-bottom: 2rem; font-size: 0.9rem; }
+        .subtitle a { color: #58a6ff; text-decoration: none; }
+        .subtitle a:hover { text-decoration: underline; }
+        .chart-container {
+            background: #161b22;
+            border: 1px solid #30363d;
+            border-radius: 6px;
+            padding: 1.5rem;
+            margin-bottom: 2rem;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            background: #161b22;
+            border: 1px solid #30363d;
+            border-radius: 6px;
+            overflow: hidden;
+        }
+        th, td {
+            padding: 0.75rem 1rem;
+            text-align: left;
+            border-bottom: 1px solid #21262d;
+        }
+        th { color: #8b949e; font-weight: 600; font-size: 0.8rem; text-transform: uppercase; }
+        td { font-size: 0.9rem; }
+        .accuracy { font-weight: 700; font-variant-numeric: tabular-nums; }
+        .model-badge {
+            display: inline-block;
+            padding: 0.15rem 0.5rem;
+            border-radius: 3px;
+            font-size: 0.8rem;
+            font-weight: 600;
+        }
+        .haiku { background: #1a3a2a; color: #3fb950; }
+        .sonnet-45 { background: #1a2a3a; color: #58a6ff; }
+        .sonnet-46 { background: #1a2a4a; color: #79c0ff; }
+        .opus-45 { background: #2a1a3a; color: #bc8cff; }
+        .opus-46 { background: #3a1a4a; color: #d2a8ff; }
+        .updated { color: #8b949e; font-size: 0.8rem; margin-top: 1rem; }
+        .no-data { color: #8b949e; text-align: center; padding: 3rem; }
+    </style>
+</head>
+<body>
+    <h1>eval-claude</h1>
+    <p class="subtitle">
+        GPQA Diamond benchmark tracking across Claude models.
+        <a href="https://github.com/lucharo/eval-claude">GitHub</a>
+    </p>
+
+    <div class="chart-container">
+        <canvas id="chart"></canvas>
+    </div>
+
+    <table id="results-table">
+        <thead>
+            <tr>
+                <th>Model</th>
+                <th>Accuracy</th>
+                <th>Stderr</th>
+                <th>Samples</th>
+                <th>Duration</th>
+                <th>Date</th>
+            </tr>
+        </thead>
+        <tbody id="results-body"></tbody>
+    </table>
+
+    <p class="updated" id="updated"></p>
+
+    <script>
+        const MODEL_CONFIG = {
+            'claude-code/claude-haiku-4-5-20251001': { label: 'Haiku 4.5', color: '#3fb950', cssClass: 'haiku' },
+            'claude-code/haiku': { label: 'Haiku 4.5', color: '#3fb950', cssClass: 'haiku' },
+            'claude-code/claude-sonnet-4-5-20250929': { label: 'Sonnet 4.5', color: '#58a6ff', cssClass: 'sonnet-45' },
+            'claude-code/sonnet': { label: 'Sonnet 4.5', color: '#58a6ff', cssClass: 'sonnet-45' },
+            'claude-code/claude-sonnet-4-6': { label: 'Sonnet 4.6', color: '#79c0ff', cssClass: 'sonnet-46' },
+            'claude-code/claude-opus-4-5-20251101': { label: 'Opus 4.5', color: '#bc8cff', cssClass: 'opus-45' },
+            'claude-code/opus': { label: 'Opus 4.5', color: '#bc8cff', cssClass: 'opus-45' },
+            'claude-code/claude-opus-4-6': { label: 'Opus 4.6', color: '#d2a8ff', cssClass: 'opus-46' },
+        };
+
+        function getModelConfig(model) {
+            return MODEL_CONFIG[model] || { label: model.replace('claude-code/', ''), color: '#8b949e', cssClass: '' };
+        }
+
+        function formatDuration(seconds) {
+            const m = Math.floor(seconds / 60);
+            const s = seconds % 60;
+            return `${m}:${String(s).padStart(2, '0')}`;
+        }
+
+        function formatDate(dateStr) {
+            const d = new Date(dateStr);
+            return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+        }
+
+        async function load() {
+            const resp = await fetch('data.json');
+            const data = await resp.json();
+
+            if (data.length === 0) {
+                document.querySelector('.chart-container').innerHTML = '<p class="no-data">No benchmark data yet. Waiting for first CI run.</p>';
+                document.getElementById('results-body').innerHTML = '<tr><td colspan="6" class="no-data">No data</td></tr>';
+                return;
+            }
+
+            // Group by model
+            const byModel = {};
+            for (const d of data) {
+                const key = d.model;
+                if (!byModel[key]) byModel[key] = [];
+                byModel[key].push(d);
+            }
+
+            // Chart
+            const datasets = Object.entries(byModel).map(([model, points]) => {
+                const cfg = getModelConfig(model);
+                return {
+                    label: cfg.label,
+                    data: points.map(p => ({ x: new Date(p.date), y: p.accuracy * 100 })),
+                    borderColor: cfg.color,
+                    backgroundColor: cfg.color + '33',
+                    tension: 0.3,
+                    pointRadius: 4,
+                    pointHoverRadius: 6,
+                };
+            });
+
+            new Chart(document.getElementById('chart'), {
+                type: 'line',
+                data: { datasets },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        legend: {
+                            labels: { color: '#c9d1d9', usePointStyle: true, padding: 20 }
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: ctx => `${ctx.dataset.label}: ${ctx.parsed.y.toFixed(1)}%`
+                            }
+                        }
+                    },
+                    scales: {
+                        x: {
+                            type: 'time',
+                            time: { unit: 'day' },
+                            ticks: { color: '#8b949e' },
+                            grid: { color: '#21262d' },
+                        },
+                        y: {
+                            min: 0, max: 100,
+                            title: { display: true, text: 'Accuracy (%)', color: '#8b949e' },
+                            ticks: { color: '#8b949e', callback: v => v + '%' },
+                            grid: { color: '#21262d' },
+                        }
+                    }
+                }
+            });
+
+            // Table: latest result per model
+            const latest = {};
+            for (const d of data) {
+                if (!latest[d.model] || new Date(d.date) > new Date(latest[d.model].date)) {
+                    latest[d.model] = d;
+                }
+            }
+
+            const sorted = Object.values(latest).sort((a, b) => b.accuracy - a.accuracy);
+            const tbody = document.getElementById('results-body');
+            for (const r of sorted) {
+                const cfg = getModelConfig(r.model);
+                tbody.innerHTML += `<tr>
+                    <td><span class="model-badge ${cfg.cssClass}">${cfg.label}</span></td>
+                    <td class="accuracy">${(r.accuracy * 100).toFixed(1)}%</td>
+                    <td>${(r.stderr * 100).toFixed(1)}%</td>
+                    <td>${r.samples}</td>
+                    <td>${formatDuration(r.duration_seconds)}</td>
+                    <td>${formatDate(r.date)}</td>
+                </tr>`;
+            }
+
+            // Updated timestamp
+            const lastDate = new Date(Math.max(...data.map(d => new Date(d.date))));
+            document.getElementById('updated').textContent = `Last updated: ${lastDate.toISOString().replace('T', ' ').slice(0, 19)} UTC`;
+        }
+
+        load();
+    </script>
+</body>
+</html>

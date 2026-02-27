@@ -4,6 +4,8 @@ Run [inspect_ai](https://inspect.aisi.org.uk/) evals through the **Claude Code C
 
 Based on [UKGovernmentBEIS/inspect_ai#2986](https://github.com/UKGovernmentBEIS/inspect_ai/pull/2986), extracted as a standalone pip-installable package.
 
+**Live dashboard:** [lucharo.github.io/eval-claude](https://lucharo.github.io/eval-claude/) — GPQA Diamond results updated twice daily across 5 Claude models.
+
 ## Why?
 
 Model providers sometimes ship regressions (e.g. [Anthropic's summer incident](https://www.anthropic.com/engineering/a-postmortem-of-three-recent-issues), [GPT-4's 2023 decline](https://futurism.com/the-byte/stanford-chatgpt-getting-dumber)). This package lets you run standard benchmarks for virtually free using your existing Claude subscription — no API keys or per-token billing needed.

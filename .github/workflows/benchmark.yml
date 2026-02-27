@@ -1,0 +1,77 @@
+name: Benchmark
+
+on:
+  schedule:
+    - cron: '0 6,18 * * *' # Twice daily: 6am and 6pm UTC
+  workflow_dispatch: # Manual trigger
+
+permissions:
+  contents: write
+
+concurrency:
+  group: benchmark
+  cancel-in-progress: false
+
+jobs:
+  eval:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      max-parallel: 1 # Run models sequentially to avoid rate limits
+      matrix:
+        model:
+          - claude-haiku-4-5-20251001
+          - claude-sonnet-4-5-20250929
+          - claude-sonnet-4-6
+          - claude-opus-4-5-20251101
+          - claude-opus-4-6
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v6
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install Claude Code CLI
+        run: npm install -g @anthropic-ai/claude-code
+
+      - name: Install dependencies
+        run: uv sync
+
+      - name: Run GPQA Diamond eval
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          uv run inspect eval inspect_evals/gpqa_diamond \
+            --model claude-code/${{ matrix.model }} \
+            --limit 50 \
+            -M max_connections=10 \
+            -M timeout=600
+
+      - name: Parse results and update data.json
+        run: |
+          RESULT=$(uv run python scripts/parse_eval.py)
+          echo "Parsed result: $RESULT"
+
+          # Append to data.json using python for reliable JSON handling
+          uv run python -c "
+          import json, sys
+          with open('docs/data.json') as f:
+              data = json.load(f)
+          data.append(json.loads('''$RESULT'''))
+          with open('docs/data.json', 'w') as f:
+              json.dump(data, f, indent=2)
+          "
+
+      - name: Commit results
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git pull --rebase origin main
+          git add docs/data.json
+          git diff --cached --quiet && echo "No changes" && exit 0
+          git commit -m "benchmark: ${{ matrix.model }} $(date -u +%Y-%m-%d) [skip ci]"
+          git push

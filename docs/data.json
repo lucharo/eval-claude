@@ -1,0 +1,32 @@
+[
+  {
+    "date": "2026-02-27T17:42:53Z",
+    "model": "claude-code/haiku",
+    "task": "inspect_evals/gpqa_diamond",
+    "accuracy": 0.615,
+    "stderr": 0.058558360911598786,
+    "duration_seconds": 762,
+    "total_tokens": 748898,
+    "samples": 200
+  },
+  {
+    "date": "2026-02-27T17:55:57Z",
+    "model": "claude-code/sonnet",
+    "task": "inspect_evals/gpqa_diamond",
+    "accuracy": 0.785,
+    "stderr": 0.04792106605062716,
+    "duration_seconds": 800,
+    "total_tokens": 787384,
+    "samples": 200
+  },
+  {
+    "date": "2026-02-27T18:09:36Z",
+    "model": "claude-code/opus",
+    "task": "inspect_evals/gpqa_diamond",
+    "accuracy": 0.86,
+    "stderr": 0.04469853670617718,
+    "duration_seconds": 853,
+    "total_tokens": 852839,
+    "samples": 200
+  }
+]
