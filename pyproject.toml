@@ -18,6 +18,7 @@ classifiers = [
 dependencies = [
     "inspect_ai",
     "inspect_evals",
+    "openai>=2.24.0",
 ]
 
 [project.optional-dependencies]
