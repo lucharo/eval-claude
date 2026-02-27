@@ -53,17 +53,18 @@ jobs:
 
       - name: Parse results and update data.json
         run: |
-          RESULT=$(uv run python scripts/parse_eval.py)
-          echo "Parsed result: $RESULT"
+          uv run python scripts/parse_eval.py > /tmp/result.json
+          echo "Parsed result: $(cat /tmp/result.json)"
 
-          # Append to data.json using python for reliable JSON handling
           uv run python -c "
-          import json, sys
+          import json
           with open('docs/data.json') as f:
               data = json.load(f)
-          data.append(json.loads('''$RESULT'''))
+          with open('/tmp/result.json') as f:
+              data.append(json.load(f))
           with open('docs/data.json', 'w') as f:
               json.dump(data, f, indent=2)
+              f.write('\n')
           "
 
       - name: Commit results
