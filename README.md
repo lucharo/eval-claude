@@ -7,13 +7,13 @@ Based on [UKGovernmentBEIS/inspect_ai#2986](https://github.com/UKGovernmentBEIS/
 ## Install
 
 ```bash
-pip install eval-claude
+uv add eval-claude
 ```
 
 Or from source:
 
 ```bash
-pip install -e .
+uv sync
 ```
 
 This installs both `inspect_ai` and `inspect_evals` (standard benchmark suite) as dependencies.
@@ -24,20 +24,28 @@ This installs both `inspect_ai` and `inspect_evals` (standard benchmark suite) a
 - Authenticated: `claude auth`
 - Active Claude Pro/Max/Team subscription
 
+## Quick start
+
+No need to clone — run directly with `uvx`:
+
+```bash
+uvx --from eval-claude inspect eval inspect_evals/mmlu_0_shot --model claude-code/haiku --limit 5
+```
+
 ## Usage
 
 ```bash
 # Basic
-inspect eval inspect_evals/mmlu_0_shot --model claude-code/sonnet --limit 10
+uv run inspect eval inspect_evals/mmlu_0_shot --model claude-code/sonnet --limit 10
 
 # Parallel (10 concurrent CLI processes)
-inspect eval inspect_evals/gpqa_diamond --model claude-code/opus -M max_connections=10
+uv run inspect eval inspect_evals/gpqa_diamond --model claude-code/opus -M max_connections=10
 
 # Extended thinking
-inspect eval inspect_evals/gpqa_diamond --model claude-code/sonnet -M thinking_level=ultrathink
+uv run inspect eval inspect_evals/gpqa_diamond --model claude-code/sonnet -M thinking_level=ultrathink
 
 # Let Claude Code pick the default model
-inspect eval task.py --model claude-code/default
+uv run inspect eval task.py --model claude-code/default
 ```
 
 ## Model args
@@ -76,6 +84,13 @@ Passed directly to the CLI. Accepts aliases (`sonnet`, `opus`, `haiku`) and full
 | Extended thinking | Fine-grained (up to 200k) | Coarse (`thinking_level`) |
 | Token usage | Real counts | Real counts |
 | Cost tracking | Via API | From CLI JSON |
+
+## Development
+
+```bash
+uv sync --extra dev
+uv run pytest tests/ -v
+```
 
 ## License
 
