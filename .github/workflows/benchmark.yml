@@ -58,17 +58,43 @@ jobs:
             -M max_connections=10 \
             -M timeout=600
 
-      - name: Parse results and update data.json
+      - name: Parse results
         run: |
           uv run python scripts/parse_eval.py > /tmp/result.json
           echo "Parsed result: $(cat /tmp/result.json)"
 
-          uv run python -c "
-          import json
+      - name: Upload result
+        uses: actions/upload-artifact@v4
+        with:
+          name: result-${{ matrix.model }}
+          path: /tmp/result.json
+          retention-days: 90
+
+  collect:
+    needs: eval
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download all results
+        uses: actions/download-artifact@v4
+        with:
+          pattern: result-*
+          path: /tmp/results
+
+      - name: Merge results into data.json
+        run: |
+          python3 -c "
+          import json, glob
+
           with open('docs/data.json') as f:
               data = json.load(f)
-          with open('/tmp/result.json') as f:
-              data.append(json.load(f))
+
+          for path in sorted(glob.glob('/tmp/results/*/result.json')):
+              with open(path) as f:
+                  data.append(json.load(f))
+
           with open('docs/data.json', 'w') as f:
               json.dump(data, f, indent=2)
               f.write('\n')
@@ -78,8 +104,7 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git pull --rebase origin main
           git add docs/data.json
           git diff --cached --quiet && echo "No changes" && exit 0
-          git commit -m "benchmark: ${{ matrix.model }} $(date -u +%Y-%m-%d) [skip ci]"
+          git commit -m "benchmark: $(date -u +%Y-%m-%d) [skip ci]"
           git push
