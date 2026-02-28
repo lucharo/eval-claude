@@ -17,7 +17,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
-      max-parallel: 1 # Run models sequentially to avoid rate limits
+      max-parallel: 5
       matrix:
         model:
           - claude-haiku-4-5-20251001
