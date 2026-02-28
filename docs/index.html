@@ -89,11 +89,7 @@
             font-size: 0.8rem;
             font-weight: 600;
         }
-        .haiku { background: #1a3a2a; color: #3fb950; }
-        .sonnet-45 { background: #1a2a3a; color: #58a6ff; }
-        .sonnet-46 { background: #1a2a4a; color: #79c0ff; }
-        .opus-45 { background: #2a1a3a; color: #bc8cff; }
-        .opus-46 { background: #3a1a4a; color: #d2a8ff; }
+        /* Model badge colors applied dynamically via inline styles */
         .updated { color: #8b949e; font-size: 0.8rem; margin-top: 1rem; }
         .no-data { color: #8b949e; text-align: center; padding: 3rem; }
     </style>
@@ -153,32 +149,48 @@ uv run inspect eval inspect_evals/gpqa_diamond \
     <p class="updated" id="updated"></p>
 
     <script>
-        // Canonical model labels — maps all name variants to a single key
-        const MODEL_LABELS = {
-            'claude-code/claude-haiku-4-5-20251001': 'Haiku 4.5',
-            'claude-code/haiku': 'Haiku 4.5',
-            'claude-code/claude-sonnet-4-5-20250929': 'Sonnet 4.5',
-            'claude-code/sonnet': 'Sonnet 4.5',
-            'claude-code/claude-sonnet-4-6': 'Sonnet 4.6',
-            'claude-code/claude-opus-4-5-20251101': 'Opus 4.5',
-            'claude-code/opus': 'Opus 4.5',
-            'claude-code/claude-opus-4-6': 'Opus 4.6',
+        // Model family color palette — each family gets a hue, versions get shades
+        const FAMILY_COLORS = {
+            'haiku':  ['#2dd4bf', '#3fb950', '#34d399', '#6ee7b7'],
+            'sonnet': ['#3b82f6', '#58a6ff', '#79c0ff', '#93c5fd'],
+            'opus':   ['#a855f7', '#bc8cff', '#d2a8ff', '#c084fc'],
         };
+        const FALLBACK_COLORS = ['#f59e0b', '#ef4444', '#ec4899', '#14b8a6', '#8b5cf6'];
+        let fallbackIdx = 0;
 
-        const LABEL_STYLES = {
-            'Haiku 4.5': { color: '#3fb950', cssClass: 'haiku' },
-            'Sonnet 4.5': { color: '#58a6ff', cssClass: 'sonnet-45' },
-            'Sonnet 4.6': { color: '#79c0ff', cssClass: 'sonnet-46' },
-            'Opus 4.5': { color: '#bc8cff', cssClass: 'opus-45' },
-            'Opus 4.6': { color: '#d2a8ff', cssClass: 'opus-46' },
-        };
-
+        // Auto-generate label from model ID: "claude-code/claude-sonnet-4-6" -> "Sonnet 4.6"
         function getLabel(model) {
-            return MODEL_LABELS[model] || model.replace('claude-code/', '');
+            const id = model.replace('claude-code/', '').replace('claude-', '');
+            // Match: family-version-subversion (e.g. sonnet-4-6 or sonnet-4-5-20250929)
+            const m = id.match(/^(haiku|sonnet|opus)-(\d+)-(\d+)(?:-\d+)?$/);
+            if (m) return `${m[1].charAt(0).toUpperCase() + m[1].slice(1)} ${m[2]}.${m[3]}`;
+            // Legacy short names
+            if (/^(haiku|sonnet|opus)$/.test(id)) return id.charAt(0).toUpperCase() + id.slice(1);
+            return id;
         }
 
+        // Track assigned colors per label to keep consistent
+        const assignedColors = {};
+        const familyVersionIdx = {};
+
         function getStyle(label) {
-            return LABEL_STYLES[label] || { color: '#8b949e', cssClass: '' };
+            if (assignedColors[label]) return assignedColors[label];
+
+            const lower = label.toLowerCase();
+            for (const [family, palette] of Object.entries(FAMILY_COLORS)) {
+                if (lower.includes(family)) {
+                    const idx = familyVersionIdx[family] || 0;
+                    familyVersionIdx[family] = idx + 1;
+                    const color = palette[idx % palette.length];
+                    const cssClass = `${family}-${label.replace(/\D+/g, '').slice(-2) || ''}`;
+                    assignedColors[label] = { color, cssClass };
+                    return assignedColors[label];
+                }
+            }
+
+            const color = FALLBACK_COLORS[fallbackIdx++ % FALLBACK_COLORS.length];
+            assignedColors[label] = { color, cssClass: '' };
+            return assignedColors[label];
         }
 
         function formatDuration(seconds) {
@@ -327,7 +339,7 @@ uv run inspect eval inspect_evals/gpqa_diamond \
             for (const r of sorted) {
                 const style = getStyle(r._label);
                 tbody.innerHTML += `<tr>
-                    <td><span class="model-badge ${style.cssClass}">${r._label}</span></td>
+                    <td><span class="model-badge" style="background:${style.color}22;color:${style.color}">${r._label}</span></td>
                     <td class="accuracy">${(r.accuracy * 100).toFixed(1)}% <span style="color:#8b949e;font-weight:400;font-size:0.8rem">\u00B1 ${(1.96 * r.stderr * 100).toFixed(1)}%</span></td>
                     <td>${r.samples}</td>
                     <td>${formatTokens(r.total_tokens)}</td>

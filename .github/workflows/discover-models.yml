@@ -1,0 +1,75 @@
+name: Discover new models
+
+on:
+  schedule:
+    - cron: '0 12 * * 1' # Weekly on Monday at noon UTC
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  discover:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check for new models
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          python3 -c "
+          import json, os, re, urllib.request
+
+          req = urllib.request.Request(
+              'https://api.anthropic.com/v1/models?limit=100',
+              headers={
+                  'x-api-key': os.environ['ANTHROPIC_API_KEY'],
+                  'anthropic-version': '2023-06-01',
+              },
+          )
+          with urllib.request.urlopen(req) as resp:
+              api_models = json.loads(resp.read())
+
+          pattern = re.compile(r'^claude-(haiku|sonnet|opus)-\d')
+          available = {m['id'] for m in api_models.get('data', []) if pattern.match(m['id'])}
+
+          with open('models.json') as f:
+              current = set(json.load(f))
+
+          new_models = sorted(available - current)
+
+          if new_models:
+              updated = sorted(current | set(new_models))
+              with open('models.json', 'w') as f:
+                  json.dump(updated, f, indent=2)
+                  f.write('\n')
+              print(f'NEW_MODELS={json.dumps(new_models)}')
+              with open(os.environ['GITHUB_OUTPUT'], 'a') as f:
+                  f.write(f'new_models={json.dumps(new_models)}\n')
+                  f.write('has_new=true\n')
+          else:
+              print('No new models found')
+              with open(os.environ['GITHUB_OUTPUT'], 'a') as f:
+                  f.write('has_new=false\n')
+          "
+        id: check
+
+      - name: Create PR for new models
+        if: steps.check.outputs.has_new == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          MODELS='${{ steps.check.outputs.new_models }}'
+          BRANCH="add-models-$(date +%Y%m%d)"
+          git checkout -b "$BRANCH"
+          git add models.json
+          git commit -m "feat: add new Claude models: $MODELS"
+          git push -u origin "$BRANCH"
+          gh pr create \
+            --title "Add new Claude models: $MODELS" \
+            --body "The Anthropic API has new models available: $MODELS
+
+These will be included in the next benchmark run after merge." \
+            --base main

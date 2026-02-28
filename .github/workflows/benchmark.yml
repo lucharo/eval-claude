@@ -13,18 +13,24 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  matrix:
+    runs-on: ubuntu-latest
+    outputs:
+      models: ${{ steps.read.outputs.models }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Read models from config
+        id: read
+        run: echo "models=$(cat models.json)" >> "$GITHUB_OUTPUT"
+
   eval:
+    needs: matrix
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       max-parallel: 5
       matrix:
-        model:
-          - claude-haiku-4-5-20251001
-          - claude-sonnet-4-5-20250929
-          - claude-sonnet-4-6
-          - claude-opus-4-5-20251101
-          - claude-opus-4-6
+        model: ${{ fromJson(needs.matrix.outputs.models) }}
 
     steps:
       - uses: actions/checkout@v4
