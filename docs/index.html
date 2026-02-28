@@ -20,6 +20,7 @@
             margin: 0 auto;
         }
         h1 { color: #f0f6fc; margin-bottom: 0.25rem; font-size: 1.5rem; }
+        h2 { color: #f0f6fc; margin-bottom: 1rem; font-size: 1.1rem; }
         .subtitle { color: #8b949e; margin-bottom: 1.5rem; font-size: 0.9rem; line-height: 1.5; }
         .subtitle a { color: #58a6ff; text-decoration: none; }
         .subtitle a:hover { text-decoration: underline; }
@@ -91,12 +92,13 @@
             font-size: 0.8rem;
             font-weight: 600;
         }
-        /* Model badge colors applied dynamically via inline styles */
         .status-ok { color: #3fb950; }
         .status-nerfed { color: #f85149; font-weight: 600; }
         .status-nodata { color: #8b949e; }
+        .cost { font-variant-numeric: tabular-nums; color: #d2a8ff; }
         .updated { color: #8b949e; font-size: 0.8rem; margin-top: 1rem; }
         .no-data { color: #8b949e; text-align: center; padding: 3rem; }
+        .pricing-note { color: #484f58; font-size: 0.75rem; margin-top: 0.5rem; }
     </style>
 </head>
 <body>
@@ -130,7 +132,19 @@ uvx --from eval-claude inspect eval inspect_evals/gpqa_diamond \
     </details>
 
     <div class="chart-container">
+        <h2>Accuracy</h2>
         <canvas id="chart"></canvas>
+    </div>
+
+    <div class="chart-container">
+        <h2>Token Usage</h2>
+        <canvas id="token-chart"></canvas>
+    </div>
+
+    <div class="chart-container">
+        <h2>Estimated Cost (API pricing)</h2>
+        <canvas id="cost-chart"></canvas>
+        <p class="pricing-note">Cost estimates based on Anthropic API pricing via <a href="https://github.com/BerriAI/litellm" style="color:#484f58">LiteLLM</a>. Actual runs use a Claude subscription.</p>
     </div>
 
     <table id="results-table">
@@ -139,8 +153,8 @@ uvx --from eval-claude inspect eval inspect_evals/gpqa_diamond \
                 <th>Model</th>
                 <th>Accuracy (95% CI)</th>
                 <th>Status</th>
-                <th>Samples</th>
                 <th>Tokens</th>
+                <th>Est. Cost</th>
                 <th>Duration</th>
                 <th>Date</th>
             </tr>
@@ -151,7 +165,7 @@ uvx --from eval-claude inspect eval inspect_evals/gpqa_diamond \
     <p class="updated" id="updated"></p>
 
     <script>
-        // Model family color palette — each family gets a hue, versions get shades
+        // Model family color palette
         const FAMILY_COLORS = {
             'haiku':  ['#2dd4bf', '#3fb950', '#34d399', '#6ee7b7'],
             'sonnet': ['#3b82f6', '#58a6ff', '#79c0ff', '#93c5fd'],
@@ -160,38 +174,40 @@ uvx --from eval-claude inspect eval inspect_evals/gpqa_diamond \
         const FALLBACK_COLORS = ['#f59e0b', '#ef4444', '#ec4899', '#14b8a6', '#8b5cf6'];
         let fallbackIdx = 0;
 
-        // Auto-generate label from model ID: "claude-code/claude-sonnet-4-6" -> "Sonnet 4.6"
         function getLabel(model) {
             const id = model.replace('claude-code/', '').replace('claude-', '');
-            // Match: family-version-subversion (e.g. sonnet-4-6 or sonnet-4-5-20250929)
             const m = id.match(/^(haiku|sonnet|opus)-(\d+)-(\d+)(?:-\d+)?$/);
             if (m) return `${m[1].charAt(0).toUpperCase() + m[1].slice(1)} ${m[2]}.${m[3]}`;
-            // Legacy short names
             if (/^(haiku|sonnet|opus)$/.test(id)) return id.charAt(0).toUpperCase() + id.slice(1);
             return id;
         }
 
-        // Track assigned colors per label to keep consistent
+        // Extract model family from label for pricing lookup
+        function getFamily(label) {
+            const lower = label.toLowerCase();
+            if (lower.includes('haiku')) return 'haiku';
+            if (lower.includes('sonnet')) return 'sonnet';
+            if (lower.includes('opus')) return 'opus';
+            return null;
+        }
+
         const assignedColors = {};
         const familyVersionIdx = {};
 
         function getStyle(label) {
             if (assignedColors[label]) return assignedColors[label];
-
             const lower = label.toLowerCase();
             for (const [family, palette] of Object.entries(FAMILY_COLORS)) {
                 if (lower.includes(family)) {
                     const idx = familyVersionIdx[family] || 0;
                     familyVersionIdx[family] = idx + 1;
                     const color = palette[idx % palette.length];
-                    const cssClass = `${family}-${label.replace(/\D+/g, '').slice(-2) || ''}`;
-                    assignedColors[label] = { color, cssClass };
+                    assignedColors[label] = { color };
                     return assignedColors[label];
                 }
             }
-
             const color = FALLBACK_COLORS[fallbackIdx++ % FALLBACK_COLORS.length];
-            assignedColors[label] = { color, cssClass: '' };
+            assignedColors[label] = { color };
             return assignedColors[label];
         }
 
@@ -208,22 +224,91 @@ uvx --from eval-claude inspect eval inspect_evals/gpqa_diamond \
             return n.toString();
         }
 
+        function formatCost(usd) {
+            if (usd == null) return '\u2014';
+            if (usd < 0.01) return '<$0.01';
+            return '$' + usd.toFixed(2);
+        }
+
         function formatDate(dateStr) {
             const d = new Date(dateStr);
             return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
         }
 
+        // Fallback pricing per million tokens (USD) if LiteLLM fetch fails
+        const FALLBACK_PRICING = {
+            'haiku':  { input: 1,  output: 5 },
+            'sonnet': { input: 3,  output: 15 },
+            'opus':   { input: 5, output: 25 },
+        };
+
+        async function fetchPricing() {
+            try {
+                const resp = await fetch('https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json');
+                const allPricing = await resp.json();
+
+                // Extract pricing for our model families
+                const pricing = {};
+                const targets = {
+                    'haiku': /claude-haiku/,
+                    'sonnet': /claude-sonnet/,
+                    'opus': /claude-opus/,
+                };
+                for (const [family, pattern] of Object.entries(targets)) {
+                    for (const [model, info] of Object.entries(allPricing)) {
+                        if (pattern.test(model) && info.input_cost_per_token) {
+                            pricing[family] = {
+                                input: info.input_cost_per_token * 1e6,
+                                output: info.output_cost_per_token * 1e6,
+                            };
+                            break; // Use first match per family
+                        }
+                    }
+                }
+                return { ...FALLBACK_PRICING, ...pricing };
+            } catch {
+                return FALLBACK_PRICING;
+            }
+        }
+
+        function estimateCost(point, pricing) {
+            const family = getFamily(getLabel(point.model));
+            if (!family || !pricing[family]) return null;
+            const p = pricing[family];
+            const inputTokens = point.input_tokens || 0;
+            const outputTokens = point.output_tokens || 0;
+            // If we only have total_tokens, split roughly 40/60 input/output
+            if (!inputTokens && !outputTokens && point.total_tokens) {
+                return (point.total_tokens * 0.4 * p.input + point.total_tokens * 0.6 * p.output) / 1e6;
+            }
+            return (inputTokens * p.input + outputTokens * p.output) / 1e6;
+        }
+
+        // Shared chart theme
+        const chartTheme = {
+            x: {
+                type: 'time',
+                time: { unit: 'day' },
+                ticks: { color: '#8b949e' },
+                grid: { color: '#21262d' },
+            },
+        };
+
         async function load() {
-            const resp = await fetch('data.json');
+            const [resp, pricing] = await Promise.all([
+                fetch('data.json'),
+                fetchPricing(),
+            ]);
             const data = await resp.json();
 
             if (data.length === 0) {
-                document.querySelector('.chart-container').innerHTML = '<p class="no-data">No benchmark data yet. Waiting for first CI run.</p>';
+                for (const el of document.querySelectorAll('.chart-container'))
+                    el.innerHTML = '<p class="no-data">No benchmark data yet.</p>';
                 document.getElementById('results-body').innerHTML = '<tr><td colspan="7" class="no-data">No data</td></tr>';
                 return;
             }
 
-            // Group by canonical label (not raw model name) to avoid duplicates
+            // Group by canonical label
             const byLabel = {};
             for (const d of data) {
                 const label = getLabel(d.model);
@@ -231,79 +316,47 @@ uvx --from eval-claude inspect eval inspect_evals/gpqa_diamond \
                 byLabel[label].push(d);
             }
 
-            // Chart — one dataset per label, no duplicates
-            // For each model: main line + shaded confidence band (accuracy +/- 1.96*stderr)
-            const datasets = [];
+            // --- Accuracy chart (with CI bands) ---
+            const accDatasets = [];
             for (const [label, points] of Object.entries(byLabel)) {
                 const style = getStyle(label);
                 const sorted = points.slice().sort((a, b) => new Date(a.date) - new Date(b.date));
 
-                // Upper bound (hidden, used as fill target)
-                datasets.push({
+                accDatasets.push({
                     label: label + ' CI upper',
                     data: sorted.map(p => ({ x: new Date(p.date), y: (p.accuracy + 1.96 * (p.stderr || 0)) * 100 })),
-                    borderColor: 'transparent',
-                    backgroundColor: 'transparent',
-                    pointRadius: 0,
-                    pointHoverRadius: 0,
-                    tension: 0.3,
-                    hidden: false,
-                    // Not in legend
+                    borderColor: 'transparent', backgroundColor: 'transparent',
+                    pointRadius: 0, pointHoverRadius: 0, tension: 0.3,
                 });
-
-                // Lower bound (fills to upper bound)
-                datasets.push({
+                accDatasets.push({
                     label: label + ' CI lower',
                     data: sorted.map(p => ({ x: new Date(p.date), y: Math.max(0, (p.accuracy - 1.96 * (p.stderr || 0))) * 100 })),
-                    borderColor: 'transparent',
-                    backgroundColor: style.color + '15',
-                    fill: '-1', // fill to previous dataset (upper bound)
-                    pointRadius: 0,
-                    pointHoverRadius: 0,
-                    tension: 0.3,
-                    hidden: false,
+                    borderColor: 'transparent', backgroundColor: style.color + '15',
+                    fill: '-1', pointRadius: 0, pointHoverRadius: 0, tension: 0.3,
                 });
-
-                // Main line
-                datasets.push({
-                    label: label,
-                    data: sorted.map(p => ({ x: new Date(p.date), y: p.accuracy * 100 })),
-                    borderColor: style.color,
-                    backgroundColor: style.color + '33',
-                    tension: 0.3,
-                    pointRadius: 4,
-                    pointHoverRadius: 6,
+                accDatasets.push({
+                    label, data: sorted.map(p => ({ x: new Date(p.date), y: p.accuracy * 100 })),
+                    borderColor: style.color, backgroundColor: style.color + '33',
+                    tension: 0.3, pointRadius: 4, pointHoverRadius: 6,
                 });
             }
 
             new Chart(document.getElementById('chart'), {
-                type: 'line',
-                data: { datasets },
+                type: 'line', data: { datasets: accDatasets },
                 options: {
                     responsive: true,
                     plugins: {
-                        legend: {
-                            labels: {
-                                color: '#c9d1d9',
-                                usePointStyle: true,
-                                padding: 20,
-                                filter: item => !item.text.includes(' CI ')
-                            }
-                        },
+                        legend: { labels: { color: '#c9d1d9', usePointStyle: true, padding: 20, filter: item => !item.text.includes(' CI ') } },
                         tooltip: {
                             filter: item => !item.dataset.label.includes(' CI '),
                             callbacks: {
                                 label: ctx => {
                                     const label = ctx.dataset.label;
                                     const acc = ctx.parsed.y.toFixed(1);
-                                    // Find matching data point for stderr
                                     const pts = byLabel[label];
                                     if (pts) {
                                         const pt = pts.find(p => new Date(p.date).getTime() === ctx.parsed.x);
-                                        if (pt && pt.stderr) {
-                                            const ci = (1.96 * pt.stderr * 100).toFixed(1);
-                                            return `${label}: ${acc}% \u00B1 ${ci}%`;
-                                        }
+                                        if (pt && pt.stderr) return `${label}: ${acc}% \u00B1 ${(1.96 * pt.stderr * 100).toFixed(1)}%`;
                                     }
                                     return `${label}: ${acc}%`;
                                 }
@@ -311,48 +364,85 @@ uvx --from eval-claude inspect eval inspect_evals/gpqa_diamond \
                         }
                     },
                     scales: {
-                        x: {
-                            type: 'time',
-                            time: { unit: 'day' },
-                            ticks: { color: '#8b949e' },
-                            grid: { color: '#21262d' },
-                        },
-                        y: {
-                            min: 0, max: 100,
-                            title: { display: true, text: 'Accuracy (%)', color: '#8b949e' },
-                            ticks: { color: '#8b949e', callback: v => v + '%' },
-                            grid: { color: '#21262d' },
-                        }
+                        ...chartTheme,
+                        y: { min: 0, max: 100, title: { display: true, text: 'Accuracy (%)', color: '#8b949e' }, ticks: { color: '#8b949e', callback: v => v + '%' }, grid: { color: '#21262d' } }
                     }
                 }
             });
 
-            // Table: latest result per canonical label
+            // --- Token usage chart ---
+            const tokenDatasets = [];
+            for (const [label, points] of Object.entries(byLabel)) {
+                const style = getStyle(label);
+                const sorted = points.slice().sort((a, b) => new Date(a.date) - new Date(b.date));
+                tokenDatasets.push({
+                    label, data: sorted.map(p => ({ x: new Date(p.date), y: (p.total_tokens || 0) / 1000 })),
+                    borderColor: style.color, backgroundColor: style.color + '33',
+                    tension: 0.3, pointRadius: 4, pointHoverRadius: 6,
+                });
+            }
+
+            new Chart(document.getElementById('token-chart'), {
+                type: 'line', data: { datasets: tokenDatasets },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        legend: { labels: { color: '#c9d1d9', usePointStyle: true, padding: 20 } },
+                        tooltip: { callbacks: { label: ctx => `${ctx.dataset.label}: ${formatTokens(ctx.parsed.y * 1000)} tokens` } }
+                    },
+                    scales: {
+                        ...chartTheme,
+                        y: { min: 0, title: { display: true, text: 'Total Tokens (K)', color: '#8b949e' }, ticks: { color: '#8b949e', callback: v => v + 'K' }, grid: { color: '#21262d' } }
+                    }
+                }
+            });
+
+            // --- Cost chart ---
+            const costDatasets = [];
+            for (const [label, points] of Object.entries(byLabel)) {
+                const style = getStyle(label);
+                const sorted = points.slice().sort((a, b) => new Date(a.date) - new Date(b.date));
+                costDatasets.push({
+                    label, data: sorted.map(p => ({ x: new Date(p.date), y: estimateCost(p, pricing) })).filter(p => p.y != null),
+                    borderColor: style.color, backgroundColor: style.color + '33',
+                    tension: 0.3, pointRadius: 4, pointHoverRadius: 6,
+                });
+            }
+
+            new Chart(document.getElementById('cost-chart'), {
+                type: 'line', data: { datasets: costDatasets },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        legend: { labels: { color: '#c9d1d9', usePointStyle: true, padding: 20 } },
+                        tooltip: { callbacks: { label: ctx => `${ctx.dataset.label}: $${ctx.parsed.y.toFixed(2)}` } }
+                    },
+                    scales: {
+                        ...chartTheme,
+                        y: { min: 0, title: { display: true, text: 'Estimated Cost (USD)', color: '#8b949e' }, ticks: { color: '#8b949e', callback: v => '$' + v }, grid: { color: '#21262d' } }
+                    }
+                }
+            });
+
+            // --- Table ---
             const latest = {};
             for (const d of data) {
                 const label = getLabel(d.model);
-                if (!latest[label] || new Date(d.date) > new Date(latest[label].date)) {
+                if (!latest[label] || new Date(d.date) > new Date(latest[label].date))
                     latest[label] = { ...d, _label: label };
-                }
             }
 
-            // Nerf detection: compare latest against historical mean
             function getNerfStatus(label, latestResult, allPoints) {
                 const points = allPoints.filter(p => p !== latestResult);
                 if (points.length < 2) return { status: 'ok', detail: '' };
-
                 const accs = points.map(p => p.accuracy);
                 const mean = accs.reduce((a, b) => a + b, 0) / accs.length;
                 const stderrs = points.map(p => p.stderr || 0);
                 const avgStderr = stderrs.reduce((a, b) => a + b, 0) / stderrs.length;
                 const lowerBound = mean - 1.96 * avgStderr;
-
                 if (latestResult.accuracy < lowerBound) {
                     const drop = ((mean - latestResult.accuracy) / mean * 100).toFixed(1);
-                    return {
-                        status: 'nerfed',
-                        detail: `${drop}% decline vs historical ${(mean * 100).toFixed(1)}%`
-                    };
+                    return { status: 'nerfed', detail: `${drop}% decline vs historical ${(mean * 100).toFixed(1)}%` };
                 }
                 return { status: 'ok', detail: '' };
             }
@@ -365,18 +455,18 @@ uvx --from eval-claude inspect eval inspect_evals/gpqa_diamond \
                 const statusHtml = nerf.status === 'nerfed'
                     ? `<span class="status-nerfed" title="${nerf.detail}">Nerfed</span>`
                     : `<span class="status-ok">OK</span>`;
+                const cost = estimateCost(r, pricing);
                 tbody.innerHTML += `<tr>
                     <td><span class="model-badge" style="background:${style.color}22;color:${style.color}">${r._label}</span></td>
                     <td class="accuracy">${(r.accuracy * 100).toFixed(1)}% <span style="color:#8b949e;font-weight:400;font-size:0.8rem">\u00B1 ${(1.96 * r.stderr * 100).toFixed(1)}%</span></td>
                     <td>${statusHtml}</td>
-                    <td>${r.samples}</td>
                     <td>${formatTokens(r.total_tokens)}</td>
+                    <td class="cost">${formatCost(cost)}</td>
                     <td>${formatDuration(r.duration_seconds)}</td>
                     <td>${formatDate(r.date)}</td>
                 </tr>`;
             }
 
-            // Updated timestamp
             const lastDate = new Date(Math.max(...data.map(d => new Date(d.date))));
             document.getElementById('updated').textContent = `Last updated: ${lastDate.toISOString().replace('T', ' ').slice(0, 19)} UTC`;
         }
