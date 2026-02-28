@@ -7,7 +7,6 @@ on:
 
 permissions:
   contents: write
-  pull-requests: write
 
 jobs:
   discover:
@@ -45,7 +44,7 @@ jobs:
               with open('models.json', 'w') as f:
                   json.dump(updated, f, indent=2)
                   f.write('\n')
-              print(f'NEW_MODELS={json.dumps(new_models)}')
+              print(f'New models found: {json.dumps(new_models)}')
               with open(os.environ['GITHUB_OUTPUT'], 'a') as f:
                   f.write(f'new_models={json.dumps(new_models)}\n')
                   f.write('has_new=true\n')
@@ -56,20 +55,12 @@ jobs:
           "
         id: check
 
-      - name: Create PR for new models
+      - name: Commit new models
         if: steps.check.outputs.has_new == 'true'
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
           MODELS='${{ steps.check.outputs.new_models }}'
-          BRANCH="add-models-$(date +%Y%m%d)"
-          git checkout -b "$BRANCH"
           git add models.json
-          git commit -m "feat: add new Claude models: $MODELS"
-          git push -u origin "$BRANCH"
-          gh pr create \
-            --title "Add new Claude models: $MODELS" \
-            --body "The Anthropic API has new models available: $MODELS
-
-These will be included in the next benchmark run after merge." \
-            --base main
+          git commit -m "feat: add new Claude models: $MODELS [skip ci]"
+          git push

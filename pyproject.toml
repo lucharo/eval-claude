@@ -9,6 +9,10 @@ authors = [
     { name = "Community" },
 ]
 keywords = ["inspect_ai", "claude", "claude-code", "eval", "benchmark"]
+[project.urls]
+Homepage = "https://didtheynerfclaude.luischav.es"
+Repository = "https://github.com/lucharo/eval-claude"
+
 classifiers = [
     "Development Status :: 3 - Alpha",
     "Programming Language :: Python :: 3",

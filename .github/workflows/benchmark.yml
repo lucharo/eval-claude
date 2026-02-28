@@ -84,11 +84,19 @@ jobs:
             -M timeout=600
 
       - name: Parse results
+        id: parse
         run: |
-          uv run python scripts/parse_eval.py > /tmp/result.json
-          echo "Parsed result: $(cat /tmp/result.json)"
+          if uv run python scripts/parse_eval.py > /tmp/result.json; then
+            echo "Parsed result: $(cat /tmp/result.json)"
+            echo "valid=true" >> "$GITHUB_OUTPUT"
+          else
+            EXIT_CODE=$?
+            echo "::warning::Parse failed (exit $EXIT_CODE) — skipping result upload"
+            echo "valid=false" >> "$GITHUB_OUTPUT"
+          fi
 
       - name: Upload result
+        if: steps.parse.outputs.valid == 'true'
         uses: actions/upload-artifact@v4
         with:
           name: result-${{ matrix.model }}
@@ -114,21 +122,75 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git pull --rebase origin main
 
-      - name: Merge results into data.json
+      - name: Merge results and check for regressions
         run: |
           python3 -c "
-          import json, glob
+          import json, glob, math, sys
 
           with open('docs/data.json') as f:
               data = json.load(f)
 
+          existing_count = len(data)
+
+          new_results = []
           for path in sorted(glob.glob('/tmp/results/*/result.json')):
               with open(path) as f:
-                  data.append(json.load(f))
+                  new_results.append(json.load(f))
+
+          data.extend(new_results)
 
           with open('docs/data.json', 'w') as f:
               json.dump(data, f, indent=2)
               f.write('\n')
+
+          # --- Nerf detection ---
+          # For each model with new results, compare against historical data.
+          # Flag if latest accuracy is below the historical lower 95% CI bound.
+          if existing_count < 2:
+              sys.exit(0)
+
+          # Group historical data by model label
+          def get_label(model):
+              id = model.replace('claude-code/', '').replace('claude-', '')
+              import re
+              m = re.match(r'^(haiku|sonnet|opus)-(\d+)-(\d+)(?:-\d+)?$', id)
+              if m: return f'{m.group(1).title()} {m.group(2)}.{m.group(3)}'
+              if id in ('haiku', 'sonnet', 'opus'): return id.title()
+              return id
+
+          historical = data[:existing_count]
+          by_label = {}
+          for d in historical:
+              label = get_label(d['model'])
+              by_label.setdefault(label, []).append(d)
+
+          alerts = []
+          for result in new_results:
+              label = get_label(result['model'])
+              prev = by_label.get(label, [])
+              if len(prev) < 2:
+                  continue
+
+              # Historical mean and pooled stderr
+              accs = [p['accuracy'] for p in prev]
+              mean_acc = sum(accs) / len(accs)
+              # Use the average stderr as estimate of sampling uncertainty
+              stderrs = [p.get('stderr', 0) for p in prev]
+              avg_stderr = sum(stderrs) / len(stderrs) if stderrs else 0
+
+              lower_bound = mean_acc - 1.96 * avg_stderr
+              drop = mean_acc - result['accuracy']
+              drop_pct = (drop / mean_acc * 100) if mean_acc > 0 else 0
+
+              if result['accuracy'] < lower_bound:
+                  alerts.append(
+                      f\"::warning::{label} may be nerfed: \"
+                      f\"{result['accuracy']*100:.1f}% vs historical {mean_acc*100:.1f}% \"
+                      f\"(drop of {drop_pct:.1f}%, below 95% CI lower bound {lower_bound*100:.1f}%)\"
+                  )
+
+          for alert in alerts:
+              print(alert)
           "
 
       - name: Commit results

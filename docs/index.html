@@ -92,6 +92,9 @@
             font-weight: 600;
         }
         /* Model badge colors applied dynamically via inline styles */
+        .status-ok { color: #3fb950; }
+        .status-nerfed { color: #f85149; font-weight: 600; }
+        .status-nodata { color: #8b949e; }
         .updated { color: #8b949e; font-size: 0.8rem; margin-top: 1rem; }
         .no-data { color: #8b949e; text-align: center; padding: 3rem; }
     </style>
@@ -135,6 +138,7 @@ inspect eval inspect_evals/gpqa_diamond \
             <tr>
                 <th>Model</th>
                 <th>Accuracy (95% CI)</th>
+                <th>Status</th>
                 <th>Samples</th>
                 <th>Tokens</th>
                 <th>Duration</th>
@@ -215,7 +219,7 @@ inspect eval inspect_evals/gpqa_diamond \
 
             if (data.length === 0) {
                 document.querySelector('.chart-container').innerHTML = '<p class="no-data">No benchmark data yet. Waiting for first CI run.</p>';
-                document.getElementById('results-body').innerHTML = '<tr><td colspan="6" class="no-data">No data</td></tr>';
+                document.getElementById('results-body').innerHTML = '<tr><td colspan="7" class="no-data">No data</td></tr>';
                 return;
             }
 
@@ -332,13 +336,39 @@ inspect eval inspect_evals/gpqa_diamond \
                 }
             }
 
+            // Nerf detection: compare latest against historical mean
+            function getNerfStatus(label, latestResult, allPoints) {
+                const points = allPoints.filter(p => p !== latestResult);
+                if (points.length < 2) return { status: 'ok', detail: '' };
+
+                const accs = points.map(p => p.accuracy);
+                const mean = accs.reduce((a, b) => a + b, 0) / accs.length;
+                const stderrs = points.map(p => p.stderr || 0);
+                const avgStderr = stderrs.reduce((a, b) => a + b, 0) / stderrs.length;
+                const lowerBound = mean - 1.96 * avgStderr;
+
+                if (latestResult.accuracy < lowerBound) {
+                    const drop = ((mean - latestResult.accuracy) / mean * 100).toFixed(1);
+                    return {
+                        status: 'nerfed',
+                        detail: `${drop}% decline vs historical ${(mean * 100).toFixed(1)}%`
+                    };
+                }
+                return { status: 'ok', detail: '' };
+            }
+
             const sorted = Object.values(latest).sort((a, b) => b.accuracy - a.accuracy);
             const tbody = document.getElementById('results-body');
             for (const r of sorted) {
                 const style = getStyle(r._label);
+                const nerf = getNerfStatus(r._label, r, byLabel[r._label] || []);
+                const statusHtml = nerf.status === 'nerfed'
+                    ? `<span class="status-nerfed" title="${nerf.detail}">Nerfed</span>`
+                    : `<span class="status-ok">OK</span>`;
                 tbody.innerHTML += `<tr>
                     <td><span class="model-badge" style="background:${style.color}22;color:${style.color}">${r._label}</span></td>
                     <td class="accuracy">${(r.accuracy * 100).toFixed(1)}% <span style="color:#8b949e;font-weight:400;font-size:0.8rem">\u00B1 ${(1.96 * r.stderr * 100).toFixed(1)}%</span></td>
+                    <td>${statusHtml}</td>
                     <td>${r.samples}</td>
                     <td>${formatTokens(r.total_tokens)}</td>
                     <td>${formatDuration(r.duration_seconds)}</td>
