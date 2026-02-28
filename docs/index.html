@@ -6,6 +6,9 @@
     <title>Did They Nerf Claude?</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
     <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3"></script>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/prismjs@1/themes/prism-tomorrow.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/prismjs@1/prism.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/prismjs@1/components/prism-bash.min.js"></script>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
@@ -48,7 +51,7 @@
         }
         .try-it summary:hover { text-decoration: underline; }
         .try-it pre {
-            background: #0d1117;
+            background: #0d1117 !important;
             border: 1px solid #30363d;
             border-radius: 4px;
             padding: 1rem;
@@ -57,8 +60,7 @@
             font-size: 0.8rem;
             line-height: 1.5;
         }
-        .try-it code { color: #e6edf3; }
-        .try-it .comment { color: #8b949e; }
+        .try-it pre code { background: none !important; }
         .chart-container {
             background: #161b22;
             border: 1px solid #30363d;
@@ -106,25 +108,21 @@
         <a href="https://www.anthropic.com/engineering/a-postmortem-of-three-recent-issues">Anthropic acknowledged it</a>,
         <a href="https://futurism.com/the-byte/stanford-chatgpt-getting-dumber">Stanford measured it in GPT-4</a>.
         The only way to know for sure is to keep running the same benchmark on the same models, automatically.</p>
-        <p>This dashboard tracks 5 Claude models on <a href="https://arxiv.org/abs/2311.12022">GPQA Diamond</a>
-        (198 expert-level science questions) via the Claude Code CLI
+        <p>This dashboard tracks Claude models on <a href="https://arxiv.org/abs/2311.12022">GPQA Diamond</a>
+        (50 expert-level science questions per run) via the Claude Code CLI
         &mdash; using a regular Claude subscription, no API keys needed.</p>
     </div>
 
     <details class="try-it">
         <summary>Run it yourself with your Claude subscription</summary>
-        <pre><code><span class="comment"># Install (requires Claude Code CLI: npm i -g @anthropic-ai/claude-code)</span>
-uvx --from eval-claude inspect eval inspect_evals/gpqa_diamond \
-  --model claude-code/sonnet \
-  --limit 10 \
-  -M max_connections=5
+        <pre><code class="language-bash"># Requires: Claude Code CLI (npm i -g @anthropic-ai/claude-code)
+pip install eval-claude
 
-<span class="comment"># Or clone and run locally</span>
-git clone https://github.com/lucharo/eval-claude && cd eval-claude
-uv sync
-uv run inspect eval inspect_evals/gpqa_diamond \
-  --model claude-code/opus \
+# Run 50 GPQA Diamond questions with Sonnet
+inspect eval inspect_evals/gpqa_diamond \
+  --model claude-code/claude-sonnet-4-6 \
   --limit 50 \
+  -T epochs=1 \
   -M max_connections=10</code></pre>
     </details>
 
