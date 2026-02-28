@@ -78,5 +78,25 @@
     "duration_seconds": 94,
     "total_tokens": 0,
     "samples": 200
+  },
+  {
+    "date": "2026-02-28T04:20:52Z",
+    "model": "claude-code/claude-haiku-4-5-20251001",
+    "task": "inspect_evals/gpqa_diamond",
+    "accuracy": 0.0,
+    "stderr": 0.0,
+    "duration_seconds": 94,
+    "total_tokens": 0,
+    "samples": 200
+  },
+  {
+    "date": "2026-02-28T04:22:59Z",
+    "model": "claude-code/claude-sonnet-4-5-20250929",
+    "task": "inspect_evals/gpqa_diamond",
+    "accuracy": 0.0,
+    "stderr": 0.0,
+    "duration_seconds": 96,
+    "total_tokens": 0,
+    "samples": 200
   }
 ]
