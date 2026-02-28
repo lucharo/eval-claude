@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>eval-claude: Claude Model Benchmarks</title>
+    <title>Did They Nerf Claude?</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
     <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3"></script>
     <style>
@@ -17,9 +17,48 @@
             margin: 0 auto;
         }
         h1 { color: #f0f6fc; margin-bottom: 0.25rem; font-size: 1.5rem; }
-        .subtitle { color: #8b949e; margin-bottom: 2rem; font-size: 0.9rem; }
+        .subtitle { color: #8b949e; margin-bottom: 1.5rem; font-size: 0.9rem; line-height: 1.5; }
         .subtitle a { color: #58a6ff; text-decoration: none; }
         .subtitle a:hover { text-decoration: underline; }
+        .motivation {
+            background: #161b22;
+            border: 1px solid #30363d;
+            border-radius: 6px;
+            padding: 1.25rem;
+            margin-bottom: 1.5rem;
+            font-size: 0.85rem;
+            line-height: 1.6;
+            color: #8b949e;
+        }
+        .motivation p { margin-bottom: 0.5rem; }
+        .motivation p:last-child { margin-bottom: 0; }
+        .motivation strong { color: #c9d1d9; }
+        .try-it {
+            background: #161b22;
+            border: 1px solid #30363d;
+            border-radius: 6px;
+            padding: 1.25rem;
+            margin-bottom: 2rem;
+        }
+        .try-it summary {
+            cursor: pointer;
+            color: #58a6ff;
+            font-size: 0.85rem;
+            font-weight: 600;
+        }
+        .try-it summary:hover { text-decoration: underline; }
+        .try-it pre {
+            background: #0d1117;
+            border: 1px solid #30363d;
+            border-radius: 4px;
+            padding: 1rem;
+            margin-top: 0.75rem;
+            overflow-x: auto;
+            font-size: 0.8rem;
+            line-height: 1.5;
+        }
+        .try-it code { color: #e6edf3; }
+        .try-it .comment { color: #8b949e; }
         .chart-container {
             background: #161b22;
             border: 1px solid #30363d;
@@ -60,11 +99,38 @@
     </style>
 </head>
 <body>
-    <h1>eval-claude</h1>
+    <h1>Did They Nerf Claude?</h1>
     <p class="subtitle">
-        GPQA Diamond benchmark tracking across Claude models.
+        GPQA Diamond benchmark tracking across Claude models, updated twice daily.
         <a href="https://github.com/lucharo/eval-claude">GitHub</a>
     </p>
+
+    <div class="motivation">
+        <p><strong>Why this exists:</strong> Model providers sometimes ship regressions.
+        <a href="https://www.anthropic.com/engineering/a-postmortem-of-three-recent-issues">Anthropic acknowledged it</a>,
+        <a href="https://futurism.com/the-byte/stanford-chatgpt-getting-dumber">Stanford measured it in GPT-4</a>.
+        The only way to know for sure is to keep running the same benchmark on the same models, automatically.</p>
+        <p>This dashboard tracks 5 Claude models on <a href="https://arxiv.org/abs/2311.12022">GPQA Diamond</a>
+        (198 expert-level science questions) via the Claude Code CLI
+        &mdash; using a regular Claude subscription, no API keys needed.</p>
+    </div>
+
+    <details class="try-it">
+        <summary>Run it yourself with your Claude subscription</summary>
+        <pre><code><span class="comment"># Install (requires Claude Code CLI: npm i -g @anthropic-ai/claude-code)</span>
+uvx --from eval-claude inspect eval inspect_evals/gpqa_diamond \
+  --model claude-code/sonnet \
+  --limit 10 \
+  -M max_connections=5
+
+<span class="comment"># Or clone and run locally</span>
+git clone https://github.com/lucharo/eval-claude && cd eval-claude
+uv sync
+uv run inspect eval inspect_evals/gpqa_diamond \
+  --model claude-code/opus \
+  --limit 50 \
+  -M max_connections=10</code></pre>
+    </details>
 
     <div class="chart-container">
         <canvas id="chart"></canvas>
@@ -88,19 +154,32 @@
     <p class="updated" id="updated"></p>
 
     <script>
-        const MODEL_CONFIG = {
-            'claude-code/claude-haiku-4-5-20251001': { label: 'Haiku 4.5', color: '#3fb950', cssClass: 'haiku' },
-            'claude-code/haiku': { label: 'Haiku 4.5', color: '#3fb950', cssClass: 'haiku' },
-            'claude-code/claude-sonnet-4-5-20250929': { label: 'Sonnet 4.5', color: '#58a6ff', cssClass: 'sonnet-45' },
-            'claude-code/sonnet': { label: 'Sonnet 4.5', color: '#58a6ff', cssClass: 'sonnet-45' },
-            'claude-code/claude-sonnet-4-6': { label: 'Sonnet 4.6', color: '#79c0ff', cssClass: 'sonnet-46' },
-            'claude-code/claude-opus-4-5-20251101': { label: 'Opus 4.5', color: '#bc8cff', cssClass: 'opus-45' },
-            'claude-code/opus': { label: 'Opus 4.5', color: '#bc8cff', cssClass: 'opus-45' },
-            'claude-code/claude-opus-4-6': { label: 'Opus 4.6', color: '#d2a8ff', cssClass: 'opus-46' },
+        // Canonical model labels — maps all name variants to a single key
+        const MODEL_LABELS = {
+            'claude-code/claude-haiku-4-5-20251001': 'Haiku 4.5',
+            'claude-code/haiku': 'Haiku 4.5',
+            'claude-code/claude-sonnet-4-5-20250929': 'Sonnet 4.5',
+            'claude-code/sonnet': 'Sonnet 4.5',
+            'claude-code/claude-sonnet-4-6': 'Sonnet 4.6',
+            'claude-code/claude-opus-4-5-20251101': 'Opus 4.5',
+            'claude-code/opus': 'Opus 4.5',
+            'claude-code/claude-opus-4-6': 'Opus 4.6',
         };
 
-        function getModelConfig(model) {
-            return MODEL_CONFIG[model] || { label: model.replace('claude-code/', ''), color: '#8b949e', cssClass: '' };
+        const LABEL_STYLES = {
+            'Haiku 4.5': { color: '#3fb950', cssClass: 'haiku' },
+            'Sonnet 4.5': { color: '#58a6ff', cssClass: 'sonnet-45' },
+            'Sonnet 4.6': { color: '#79c0ff', cssClass: 'sonnet-46' },
+            'Opus 4.5': { color: '#bc8cff', cssClass: 'opus-45' },
+            'Opus 4.6': { color: '#d2a8ff', cssClass: 'opus-46' },
+        };
+
+        function getLabel(model) {
+            return MODEL_LABELS[model] || model.replace('claude-code/', '');
+        }
+
+        function getStyle(label) {
+            return LABEL_STYLES[label] || { color: '#8b949e', cssClass: '' };
         }
 
         function formatDuration(seconds) {
@@ -110,7 +189,7 @@
         }
 
         function formatTokens(n) {
-            if (!n) return '—';
+            if (!n) return '\u2014';
             if (n >= 1e6) return (n / 1e6).toFixed(1) + 'M';
             if (n >= 1e3) return (n / 1e3).toFixed(0) + 'K';
             return n.toString();
@@ -131,22 +210,22 @@
                 return;
             }
 
-            // Group by model
-            const byModel = {};
+            // Group by canonical label (not raw model name) to avoid duplicates
+            const byLabel = {};
             for (const d of data) {
-                const key = d.model;
-                if (!byModel[key]) byModel[key] = [];
-                byModel[key].push(d);
+                const label = getLabel(d.model);
+                if (!byLabel[label]) byLabel[label] = [];
+                byLabel[label].push(d);
             }
 
-            // Chart
-            const datasets = Object.entries(byModel).map(([model, points]) => {
-                const cfg = getModelConfig(model);
+            // Chart — one dataset per label, no duplicates
+            const datasets = Object.entries(byLabel).map(([label, points]) => {
+                const style = getStyle(label);
                 return {
-                    label: cfg.label,
+                    label: label,
                     data: points.map(p => ({ x: new Date(p.date), y: p.accuracy * 100 })),
-                    borderColor: cfg.color,
-                    backgroundColor: cfg.color + '33',
+                    borderColor: style.color,
+                    backgroundColor: style.color + '33',
                     tension: 0.3,
                     pointRadius: 4,
                     pointHoverRadius: 6,
@@ -185,20 +264,21 @@
                 }
             });
 
-            // Table: latest result per model
+            // Table: latest result per canonical label
             const latest = {};
             for (const d of data) {
-                if (!latest[d.model] || new Date(d.date) > new Date(latest[d.model].date)) {
-                    latest[d.model] = d;
+                const label = getLabel(d.model);
+                if (!latest[label] || new Date(d.date) > new Date(latest[label].date)) {
+                    latest[label] = { ...d, _label: label };
                 }
             }
 
             const sorted = Object.values(latest).sort((a, b) => b.accuracy - a.accuracy);
             const tbody = document.getElementById('results-body');
             for (const r of sorted) {
-                const cfg = getModelConfig(r.model);
+                const style = getStyle(r._label);
                 tbody.innerHTML += `<tr>
-                    <td><span class="model-badge ${cfg.cssClass}">${cfg.label}</span></td>
+                    <td><span class="model-badge ${style.cssClass}">${r._label}</span></td>
                     <td class="accuracy">${(r.accuracy * 100).toFixed(1)}%</td>
                     <td>${(r.stderr * 100).toFixed(1)}%</td>
                     <td>${r.samples}</td>
