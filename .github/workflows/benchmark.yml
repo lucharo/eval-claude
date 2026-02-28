@@ -44,6 +44,17 @@ jobs:
         run: |
           mkdir -p ~/.claude
           echo '{"hasCompletedOnboarding":true}' > ~/.claude.json
+          EXPIRES_AT=$(($(date +%s) * 1000 + 31536000000))
+          python3 -c "
+          import json, os
+          creds = {'claudeAiOauth': {
+              'accessToken': os.environ['CLAUDE_CODE_OAUTH_TOKEN'],
+              'expiresAt': ${EXPIRES_AT},
+              'scopes': ['user:inference']
+          }}
+          with open(os.path.expanduser('~/.claude/.credentials.json'), 'w') as f:
+              json.dump(creds, f)
+          "
 
       - name: Install dependencies
         run: uv sync
