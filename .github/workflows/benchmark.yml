@@ -101,6 +101,12 @@ jobs:
           pattern: result-*
           path: /tmp/results
 
+      - name: Pull latest main
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git pull --rebase origin main
+
       - name: Merge results into data.json
         run: |
           python3 -c "
@@ -120,10 +126,14 @@ jobs:
 
       - name: Commit results
         run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git pull --rebase origin main
           git add docs/data.json
           git diff --cached --quiet && echo "No changes" && exit 0
           git commit -m "benchmark: $(date -u +%Y-%m-%d) [skip ci]"
           git push
+
+      - name: Deploy to Cloudflare Pages
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: 2e2dcb5a3a7d378eaa6a9250c12d70d4
+          command: pages deploy docs --project-name isclaudenerfed
