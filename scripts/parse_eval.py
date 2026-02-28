@@ -31,8 +31,12 @@ def parse_log(log_path: str) -> dict:
     duration_seconds = (end_dt - start_dt).total_seconds()
 
     # Extract token usage
+    input_tokens = 0
+    output_tokens = 0
     total_tokens = 0
     for usage in log.stats.model_usage.values():
+        input_tokens += usage.input_tokens
+        output_tokens += usage.output_tokens
         total_tokens += usage.total_tokens
 
     return {
@@ -42,6 +46,8 @@ def parse_log(log_path: str) -> dict:
         "accuracy": accuracy,
         "stderr": stderr,
         "duration_seconds": int(duration_seconds),
+        "input_tokens": input_tokens,
+        "output_tokens": output_tokens,
         "total_tokens": total_tokens,
         "samples": log.results.completed_samples,
     }
