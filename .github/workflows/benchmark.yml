@@ -56,6 +56,13 @@ jobs:
               json.dump(creds, f)
           "
 
+      - name: Verify Claude Code auth
+        env:
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+        run: |
+          echo "Testing CLI auth..."
+          claude -p "Reply with just the word 'hello'" --output-format json --dangerously-skip-permissions 2>&1 || true
+
       - name: Install dependencies
         run: uv sync
 
