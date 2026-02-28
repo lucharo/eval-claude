@@ -73,6 +73,7 @@ jobs:
           uv run inspect eval inspect_evals/gpqa_diamond \
             --model claude-code/${{ matrix.model }} \
             --limit 50 \
+            -T epochs=1 \
             -M max_connections=10 \
             -M timeout=600
 
@@ -130,10 +131,3 @@ jobs:
           git diff --cached --quiet && echo "No changes" && exit 0
           git commit -m "benchmark: $(date -u +%Y-%m-%d) [skip ci]"
           git push
-
-      - name: Deploy to Cloudflare Pages
-        uses: cloudflare/wrangler-action@v3
-        with:
-          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          accountId: 2e2dcb5a3a7d378eaa6a9250c12d70d4
-          command: pages deploy docs --project-name isclaudenerfed
