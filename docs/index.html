@@ -140,8 +140,7 @@ uv run inspect eval inspect_evals/gpqa_diamond \
         <thead>
             <tr>
                 <th>Model</th>
-                <th>Accuracy</th>
-                <th>Stderr</th>
+                <th>Accuracy (95% CI)</th>
                 <th>Samples</th>
                 <th>Tokens</th>
                 <th>Duration</th>
@@ -206,7 +205,7 @@ uv run inspect eval inspect_evals/gpqa_diamond \
 
             if (data.length === 0) {
                 document.querySelector('.chart-container').innerHTML = '<p class="no-data">No benchmark data yet. Waiting for first CI run.</p>';
-                document.getElementById('results-body').innerHTML = '<tr><td colspan="7" class="no-data">No data</td></tr>';
+                document.getElementById('results-body').innerHTML = '<tr><td colspan="6" class="no-data">No data</td></tr>';
                 return;
             }
 
@@ -219,18 +218,49 @@ uv run inspect eval inspect_evals/gpqa_diamond \
             }
 
             // Chart — one dataset per label, no duplicates
-            const datasets = Object.entries(byLabel).map(([label, points]) => {
+            // For each model: main line + shaded confidence band (accuracy +/- 1.96*stderr)
+            const datasets = [];
+            for (const [label, points] of Object.entries(byLabel)) {
                 const style = getStyle(label);
-                return {
+                const sorted = points.slice().sort((a, b) => new Date(a.date) - new Date(b.date));
+
+                // Upper bound (hidden, used as fill target)
+                datasets.push({
+                    label: label + ' CI upper',
+                    data: sorted.map(p => ({ x: new Date(p.date), y: (p.accuracy + 1.96 * (p.stderr || 0)) * 100 })),
+                    borderColor: 'transparent',
+                    backgroundColor: 'transparent',
+                    pointRadius: 0,
+                    pointHoverRadius: 0,
+                    tension: 0.3,
+                    hidden: false,
+                    // Not in legend
+                });
+
+                // Lower bound (fills to upper bound)
+                datasets.push({
+                    label: label + ' CI lower',
+                    data: sorted.map(p => ({ x: new Date(p.date), y: Math.max(0, (p.accuracy - 1.96 * (p.stderr || 0))) * 100 })),
+                    borderColor: 'transparent',
+                    backgroundColor: style.color + '15',
+                    fill: '-1', // fill to previous dataset (upper bound)
+                    pointRadius: 0,
+                    pointHoverRadius: 0,
+                    tension: 0.3,
+                    hidden: false,
+                });
+
+                // Main line
+                datasets.push({
                     label: label,
-                    data: points.map(p => ({ x: new Date(p.date), y: p.accuracy * 100 })),
+                    data: sorted.map(p => ({ x: new Date(p.date), y: p.accuracy * 100 })),
                     borderColor: style.color,
                     backgroundColor: style.color + '33',
                     tension: 0.3,
                     pointRadius: 4,
                     pointHoverRadius: 6,
-                };
-            });
+                });
+            }
 
             new Chart(document.getElementById('chart'), {
                 type: 'line',
@@ -239,11 +269,30 @@ uv run inspect eval inspect_evals/gpqa_diamond \
                     responsive: true,
                     plugins: {
                         legend: {
-                            labels: { color: '#c9d1d9', usePointStyle: true, padding: 20 }
+                            labels: {
+                                color: '#c9d1d9',
+                                usePointStyle: true,
+                                padding: 20,
+                                filter: item => !item.text.includes(' CI ')
+                            }
                         },
                         tooltip: {
+                            filter: item => !item.dataset.label.includes(' CI '),
                             callbacks: {
-                                label: ctx => `${ctx.dataset.label}: ${ctx.parsed.y.toFixed(1)}%`
+                                label: ctx => {
+                                    const label = ctx.dataset.label;
+                                    const acc = ctx.parsed.y.toFixed(1);
+                                    // Find matching data point for stderr
+                                    const pts = byLabel[label];
+                                    if (pts) {
+                                        const pt = pts.find(p => new Date(p.date).getTime() === ctx.parsed.x);
+                                        if (pt && pt.stderr) {
+                                            const ci = (1.96 * pt.stderr * 100).toFixed(1);
+                                            return `${label}: ${acc}% \u00B1 ${ci}%`;
+                                        }
+                                    }
+                                    return `${label}: ${acc}%`;
+                                }
                             }
                         }
                     },
@@ -279,8 +328,7 @@ uv run inspect eval inspect_evals/gpqa_diamond \
                 const style = getStyle(r._label);
                 tbody.innerHTML += `<tr>
                     <td><span class="model-badge ${style.cssClass}">${r._label}</span></td>
-                    <td class="accuracy">${(r.accuracy * 100).toFixed(1)}%</td>
-                    <td>${(r.stderr * 100).toFixed(1)}%</td>
+                    <td class="accuracy">${(r.accuracy * 100).toFixed(1)}% <span style="color:#8b949e;font-weight:400;font-size:0.8rem">\u00B1 ${(1.96 * r.stderr * 100).toFixed(1)}%</span></td>
                     <td>${r.samples}</td>
                     <td>${formatTokens(r.total_tokens)}</td>
                     <td>${formatDuration(r.duration_seconds)}</td>
