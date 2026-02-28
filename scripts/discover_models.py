@@ -51,6 +51,14 @@ def load_current() -> list[str]:
         return json.load(f)
 
 
+def write_github_output(key: str, value: str) -> None:
+    """Write a key=value pair to $GITHUB_OUTPUT if running in CI."""
+    output_file = os.environ.get("GITHUB_OUTPUT")
+    if output_file:
+        with open(output_file, "a") as f:
+            f.write(f"{key}={value}\n")
+
+
 def main():
     update = "--update" in sys.argv
 
@@ -66,6 +74,7 @@ def main():
         print(f"Models no longer available: {', '.join(removed)}")
     if not new_models and not removed:
         print("No changes — all models up to date")
+        write_github_output("has_new", "false")
         return
 
     if update and new_models:
@@ -74,8 +83,11 @@ def main():
             json.dump(updated, f, indent=2)
             f.write("\n")
         print(f"Updated {MODELS_FILE} with {len(new_models)} new model(s)")
+        write_github_output("has_new", "true")
+        write_github_output("new_models", json.dumps(new_models))
     elif new_models:
         print("Run with --update to add them to models.json")
+        write_github_output("has_new", "false")
 
 
 if __name__ == "__main__":

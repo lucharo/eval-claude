@@ -119,10 +119,10 @@
     <details class="try-it">
         <summary>Run it yourself with your Claude subscription</summary>
         <pre><code class="language-bash"># Requires: Claude Code CLI (npm i -g @anthropic-ai/claude-code)
-pip install eval-claude
+uv pip install eval-claude
 
 # Run 50 GPQA Diamond questions with Sonnet
-inspect eval inspect_evals/gpqa_diamond \
+uvx --from eval-claude inspect eval inspect_evals/gpqa_diamond \
   --model claude-code/claude-sonnet-4-6 \
   --limit 50 \
   -T epochs=1 \

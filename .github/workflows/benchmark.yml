@@ -51,7 +51,7 @@ jobs:
           mkdir -p ~/.claude
           echo '{"hasCompletedOnboarding":true}' > ~/.claude.json
           EXPIRES_AT=$(($(date +%s) * 1000 + 31536000000))
-          python3 -c "
+          uv run python -c "
           import json, os
           creds = {'claudeAiOauth': {
               'accessToken': os.environ['CLAUDE_CODE_OAUTH_TOKEN'],
@@ -110,6 +110,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - uses: astral-sh/setup-uv@v6
+
       - name: Download all results
         uses: actions/download-artifact@v4
         with:
@@ -123,75 +125,7 @@ jobs:
           git pull --rebase origin main
 
       - name: Merge results and check for regressions
-        run: |
-          python3 -c "
-          import json, glob, math, sys
-
-          with open('docs/data.json') as f:
-              data = json.load(f)
-
-          existing_count = len(data)
-
-          new_results = []
-          for path in sorted(glob.glob('/tmp/results/*/result.json')):
-              with open(path) as f:
-                  new_results.append(json.load(f))
-
-          data.extend(new_results)
-
-          with open('docs/data.json', 'w') as f:
-              json.dump(data, f, indent=2)
-              f.write('\n')
-
-          # --- Nerf detection ---
-          # For each model with new results, compare against historical data.
-          # Flag if latest accuracy is below the historical lower 95% CI bound.
-          if existing_count < 2:
-              sys.exit(0)
-
-          # Group historical data by model label
-          def get_label(model):
-              id = model.replace('claude-code/', '').replace('claude-', '')
-              import re
-              m = re.match(r'^(haiku|sonnet|opus)-(\d+)-(\d+)(?:-\d+)?$', id)
-              if m: return f'{m.group(1).title()} {m.group(2)}.{m.group(3)}'
-              if id in ('haiku', 'sonnet', 'opus'): return id.title()
-              return id
-
-          historical = data[:existing_count]
-          by_label = {}
-          for d in historical:
-              label = get_label(d['model'])
-              by_label.setdefault(label, []).append(d)
-
-          alerts = []
-          for result in new_results:
-              label = get_label(result['model'])
-              prev = by_label.get(label, [])
-              if len(prev) < 2:
-                  continue
-
-              # Historical mean and pooled stderr
-              accs = [p['accuracy'] for p in prev]
-              mean_acc = sum(accs) / len(accs)
-              # Use the average stderr as estimate of sampling uncertainty
-              stderrs = [p.get('stderr', 0) for p in prev]
-              avg_stderr = sum(stderrs) / len(stderrs) if stderrs else 0
-
-              lower_bound = mean_acc - 1.96 * avg_stderr
-              drop = mean_acc - result['accuracy']
-              drop_pct = (drop / mean_acc * 100) if mean_acc > 0 else 0
-
-              if result['accuracy'] < lower_bound:
-                  alerts.append(
-                      f\"::warning::{label} may be nerfed: \"
-                      f\"{result['accuracy']*100:.1f}% vs historical {mean_acc*100:.1f}% \"
-                      f\"(drop of {drop_pct:.1f}%, below 95% CI lower bound {lower_bound*100:.1f}%)\"
-                  )
-
-          for alert in alerts:
-              print(alert)
-          "
+        run: uv run python scripts/merge_results.py /tmp/results
 
       - name: Commit results
         run: |
