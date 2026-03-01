@@ -21,7 +21,7 @@ jobs:
       - uses: actions/checkout@v4
       - name: Read models from config
         id: read
-        run: echo "models=$(cat models.json)" >> "$GITHUB_OUTPUT"
+        run: echo "models=$(jq -c . models.json)" >> "$GITHUB_OUTPUT"
 
   eval:
     needs: matrix
