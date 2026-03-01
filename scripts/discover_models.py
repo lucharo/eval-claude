@@ -19,30 +19,44 @@ import urllib.request
 from pathlib import Path
 
 MODELS_FILE = Path(__file__).parent.parent / "models.json"
-API_URL = "https://api.anthropic.com/v1/models?limit=100"
+API_BASE = "https://api.anthropic.com/v1/models"
 
 # Only benchmark these model families
 FAMILY_PATTERN = re.compile(r"^claude-(haiku|sonnet|opus)-\d")
 
 
 def fetch_models() -> list[str]:
-    """Fetch available model IDs from the Anthropic API."""
+    """Fetch available model IDs from the Anthropic API, handling pagination."""
     api_key = os.environ.get("ANTHROPIC_API_KEY", "")
     if not api_key:
         print("ANTHROPIC_API_KEY not set, cannot query models API", file=sys.stderr)
         sys.exit(1)
 
-    req = urllib.request.Request(
-        API_URL,
-        headers={
-            "x-api-key": api_key,
-            "anthropic-version": "2023-06-01",
-        },
-    )
-    with urllib.request.urlopen(req) as resp:
-        data = json.loads(resp.read())
+    all_models: list[str] = []
+    url = f"{API_BASE}?limit=100"
 
-    return [m["id"] for m in data.get("data", []) if FAMILY_PATTERN.match(m["id"])]
+    while url:
+        req = urllib.request.Request(
+            url,
+            headers={
+                "x-api-key": api_key,
+                "anthropic-version": "2023-06-01",
+            },
+        )
+        with urllib.request.urlopen(req) as resp:
+            data = json.loads(resp.read())
+
+        for m in data.get("data", []):
+            if FAMILY_PATTERN.match(m["id"]):
+                all_models.append(m["id"])
+
+        # Handle pagination
+        if data.get("has_more") and data.get("last_id"):
+            url = f"{API_BASE}?limit=100&after_id={data['last_id']}"
+        else:
+            url = None
+
+    return all_models
 
 
 def load_current() -> list[str]:

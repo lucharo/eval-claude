@@ -247,21 +247,27 @@ uvx --from eval-claude inspect eval inspect_evals/gpqa_diamond \
                 const resp = await fetch('https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json');
                 const allPricing = await resp.json();
 
-                // Extract pricing for our model families
+                // Extract pricing for our model families, preferring highest version
                 const pricing = {};
                 const targets = {
-                    'haiku': /claude-haiku/,
-                    'sonnet': /claude-sonnet/,
-                    'opus': /claude-opus/,
+                    'haiku': /^claude-(\d+(?:\.\d+)?)-haiku|^claude-haiku-(\d+)-(\d+)/,
+                    'sonnet': /^claude-(\d+(?:\.\d+)?)-sonnet|^claude-sonnet-(\d+)-(\d+)/,
+                    'opus': /^claude-(\d+(?:\.\d+)?)-opus|^claude-opus-(\d+)-(\d+)/,
                 };
                 for (const [family, pattern] of Object.entries(targets)) {
+                    let bestVersion = -1;
                     for (const [model, info] of Object.entries(allPricing)) {
-                        if (pattern.test(model) && info.input_cost_per_token) {
-                            pricing[family] = {
-                                input: info.input_cost_per_token * 1e6,
-                                output: info.output_cost_per_token * 1e6,
-                            };
-                            break; // Use first match per family
+                        const m = model.match(pattern);
+                        if (m && info.input_cost_per_token) {
+                            // Extract version as comparable number (e.g. "4.5" -> 4.5, "4"+"6" -> 4.6)
+                            const ver = m[1] ? parseFloat(m[1]) : parseFloat(`${m[2]}.${m[3]}`);
+                            if (ver > bestVersion) {
+                                bestVersion = ver;
+                                pricing[family] = {
+                                    input: info.input_cost_per_token * 1e6,
+                                    output: info.output_cost_per_token * 1e6,
+                                };
+                            }
                         }
                     }
                 }
@@ -277,11 +283,13 @@ uvx --from eval-claude inspect eval inspect_evals/gpqa_diamond \
             const p = pricing[family];
             const inputTokens = point.input_tokens || 0;
             const outputTokens = point.output_tokens || 0;
-            // If we only have total_tokens, split roughly 40/60 input/output
-            if (!inputTokens && !outputTokens && point.total_tokens) {
-                return (point.total_tokens * 0.4 * p.input + point.total_tokens * 0.6 * p.output) / 1e6;
-            }
+            // Need at least input/output breakdown for a meaningful estimate
+            if (!inputTokens && !outputTokens) return null;
             return (inputTokens * p.input + outputTokens * p.output) / 1e6;
+        }
+
+        function escapeHtml(str) {
+            return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
         }
 
         // Shared chart theme
@@ -437,9 +445,10 @@ uvx --from eval-claude inspect eval inspect_evals/gpqa_diamond \
                 if (points.length < 2) return { status: 'ok', detail: '' };
                 const accs = points.map(p => p.accuracy);
                 const mean = accs.reduce((a, b) => a + b, 0) / accs.length;
-                const stderrs = points.map(p => p.stderr || 0);
-                const avgStderr = stderrs.reduce((a, b) => a + b, 0) / stderrs.length;
-                const lowerBound = mean - 1.96 * avgStderr;
+                // Use standard deviation of historical accuracies (not averaged stderr)
+                const variance = accs.reduce((sum, a) => sum + (a - mean) ** 2, 0) / accs.length;
+                const sd = Math.sqrt(variance);
+                const lowerBound = mean - 1.96 * sd;
                 if (latestResult.accuracy < lowerBound) {
                     const drop = ((mean - latestResult.accuracy) / mean * 100).toFixed(1);
                     return { status: 'nerfed', detail: `${drop}% decline vs historical ${(mean * 100).toFixed(1)}%` };
@@ -453,11 +462,11 @@ uvx --from eval-claude inspect eval inspect_evals/gpqa_diamond \
                 const style = getStyle(r._label);
                 const nerf = getNerfStatus(r._label, r, byLabel[r._label] || []);
                 const statusHtml = nerf.status === 'nerfed'
-                    ? `<span class="status-nerfed" title="${nerf.detail}">Nerfed</span>`
+                    ? `<span class="status-nerfed" title="${escapeHtml(nerf.detail)}">Nerfed</span>`
                     : `<span class="status-ok">OK</span>`;
                 const cost = estimateCost(r, pricing);
                 tbody.innerHTML += `<tr>
-                    <td><span class="model-badge" style="background:${style.color}22;color:${style.color}">${r._label}</span></td>
+                    <td><span class="model-badge" style="background:${style.color}22;color:${style.color}">${escapeHtml(r._label)}</span></td>
                     <td class="accuracy">${(r.accuracy * 100).toFixed(1)}% <span style="color:#8b949e;font-weight:400;font-size:0.8rem">\u00B1 ${(1.96 * r.stderr * 100).toFixed(1)}%</span></td>
                     <td>${statusHtml}</td>
                     <td>${formatTokens(r.total_tokens)}</td>

@@ -42,13 +42,22 @@ def merge(results_dir: str) -> None:
         print("No new results to merge")
         return
 
-    data.extend(new_results)
+    # Deduplicate: skip results with same (model, date) as existing entries
+    existing_keys = {(d["model"], d["date"]) for d in data}
+    deduped = [r for r in new_results if (r["model"], r["date"]) not in existing_keys]
+    if len(deduped) < len(new_results):
+        print(f"Skipped {len(new_results) - len(deduped)} duplicate result(s)")
+    if not deduped:
+        print("All results already exist in data.json")
+        return
+
+    data.extend(deduped)
 
     with open(DATA_FILE, "w") as f:
         json.dump(data, f, indent=2)
         f.write("\n")
 
-    print(f"Merged {len(new_results)} new result(s) into {DATA_FILE}")
+    print(f"Merged {len(deduped)} new result(s) into {DATA_FILE}")
 
     # --- Nerf detection ---
     if existing_count < 2:
@@ -60,7 +69,7 @@ def merge(results_dir: str) -> None:
         label = get_label(d["model"])
         by_label.setdefault(label, []).append(d)
 
-    for result in new_results:
+    for result in deduped:
         label = get_label(result["model"])
         prev = by_label.get(label, [])
         if len(prev) < 2:
@@ -68,10 +77,11 @@ def merge(results_dir: str) -> None:
 
         accs = [p["accuracy"] for p in prev]
         mean_acc = sum(accs) / len(accs)
-        stderrs = [p.get("stderr", 0) for p in prev]
-        avg_stderr = sum(stderrs) / len(stderrs)
+        # Use standard deviation of historical accuracies (not averaged stderr)
+        variance = sum((a - mean_acc) ** 2 for a in accs) / len(accs)
+        sd = variance ** 0.5
 
-        lower_bound = mean_acc - 1.96 * avg_stderr
+        lower_bound = mean_acc - 1.96 * sd
         drop_pct = (mean_acc - result["accuracy"]) / mean_acc * 100 if mean_acc > 0 else 0
 
         if result["accuracy"] < lower_bound:

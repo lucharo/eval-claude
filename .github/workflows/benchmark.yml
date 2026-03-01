@@ -86,11 +86,14 @@ jobs:
       - name: Parse results
         id: parse
         run: |
-          if uv run python scripts/parse_eval.py > /tmp/result.json; then
+          set +e
+          uv run python scripts/parse_eval.py > /tmp/result.json
+          EXIT_CODE=$?
+          set -e
+          if [ $EXIT_CODE -eq 0 ]; then
             echo "Parsed result: $(cat /tmp/result.json)"
             echo "valid=true" >> "$GITHUB_OUTPUT"
           else
-            EXIT_CODE=$?
             echo "::warning::Parse failed (exit $EXIT_CODE) — skipping result upload"
             echo "valid=false" >> "$GITHUB_OUTPUT"
           fi

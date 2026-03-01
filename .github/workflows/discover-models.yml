@@ -24,10 +24,11 @@ jobs:
 
       - name: Commit new models
         if: steps.check.outputs.has_new == 'true'
+        env:
+          MODELS: ${{ steps.check.outputs.new_models }}
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          MODELS='${{ steps.check.outputs.new_models }}'
           git add models.json
           git commit -m "feat: add new Claude models: $MODELS [skip ci]"
           git push
