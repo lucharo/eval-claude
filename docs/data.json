@@ -4144,5 +4144,65 @@
     "output_tokens": 9804,
     "total_tokens": 58678,
     "samples": 50
+  },
+  {
+    "date": "2026-04-08T18:32:04Z",
+    "model": "claude-code/claude-haiku-4-5-20251001",
+    "task": "inspect_evals/gpqa_diamond",
+    "accuracy": 0.74,
+    "stderr": 0.06266203485560373,
+    "duration_seconds": 142,
+    "input_tokens": 307219,
+    "output_tokens": 120842,
+    "total_tokens": 428061,
+    "samples": 50
+  },
+  {
+    "date": "2026-04-08T18:31:58Z",
+    "model": "claude-code/claude-opus-4-5-20251101",
+    "task": "inspect_evals/gpqa_diamond",
+    "accuracy": 0.84,
+    "stderr": 0.05237229365663817,
+    "duration_seconds": 259,
+    "input_tokens": 307119,
+    "output_tokens": 111631,
+    "total_tokens": 418750,
+    "samples": 50
+  },
+  {
+    "date": "2026-04-08T18:31:56Z",
+    "model": "claude-code/claude-opus-4-6",
+    "task": "inspect_evals/gpqa_diamond",
+    "accuracy": 0.84,
+    "stderr": 0.05237229365663817,
+    "duration_seconds": 1219,
+    "input_tokens": 287065,
+    "output_tokens": 150526,
+    "total_tokens": 437591,
+    "samples": 50
+  },
+  {
+    "date": "2026-04-08T18:31:58Z",
+    "model": "claude-code/claude-sonnet-4-5-20250929",
+    "task": "inspect_evals/gpqa_diamond",
+    "accuracy": 0.84,
+    "stderr": 0.05237229365663817,
+    "duration_seconds": 281,
+    "input_tokens": 307219,
+    "output_tokens": 117652,
+    "total_tokens": 424871,
+    "samples": 50
+  },
+  {
+    "date": "2026-04-08T18:32:01Z",
+    "model": "claude-code/claude-sonnet-4-6",
+    "task": "inspect_evals/gpqa_diamond",
+    "accuracy": 0.84,
+    "stderr": 0.05237229365663817,
+    "duration_seconds": 1372,
+    "input_tokens": 360331,
+    "output_tokens": 352187,
+    "total_tokens": 712518,
+    "samples": 50
   }
 ]
