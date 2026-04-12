@@ -275,13 +275,12 @@ class ClaudeCodeAPI(ModelAPI):
         cache_creation = usage_data.get("cache_creation_input_tokens", 0)
         cache_read = usage_data.get("cache_read_input_tokens", 0)
 
-        total_input = input_tokens + cache_creation + cache_read
         return {
-            "input": total_input,
+            "input": input_tokens,
             "output": output_tokens,
             "cache_creation": cache_creation,
             "cache_read": cache_read,
-            "total": total_input + output_tokens,
+            "total": input_tokens + output_tokens + cache_creation + cache_read,
         }
 
     def _extract_metadata(

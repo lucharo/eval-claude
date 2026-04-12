@@ -683,7 +683,7 @@ def test_extract_usage_full(mock_cli_path):
         "output": 50,
         "cache_creation": 10,
         "cache_read": 5,
-        "total": 160,
+        "total": 165,
     }
 
 
