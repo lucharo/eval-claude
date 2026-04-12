@@ -6,6 +6,8 @@ Based on [UKGovernmentBEIS/inspect_ai#2986](https://github.com/UKGovernmentBEIS/
 
 **Live dashboard:** [lucharo.github.io/eval-claude](https://lucharo.github.io/eval-claude/) — final GPQA Diamond history across 5 Claude models, including benchmark run capture status.
 
+> **Disclaimer:** the dashboard shows all valid benchmark rows that were actually persisted, plus a run ledger for missing or partial runs. Some historical workflow runs produced no publishable result because of auth/rate-limit failures or earlier invalid 0%-accuracy outputs that were later purged.
+
 ## Why?
 
 Model providers sometimes ship regressions (e.g. [Anthropic's summer incident](https://www.anthropic.com/engineering/a-postmortem-of-three-recent-issues), [GPT-4's 2023 decline](https://futurism.com/the-byte/stanford-chatgpt-getting-dumber)). This package lets you run standard benchmarks for virtually free using your existing Claude subscription — no API keys or per-token billing needed.
