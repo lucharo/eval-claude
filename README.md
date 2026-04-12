@@ -4,7 +4,7 @@ Run [inspect_ai](https://inspect.aisi.org.uk/) evals through the **Claude Code C
 
 Based on [UKGovernmentBEIS/inspect_ai#2986](https://github.com/UKGovernmentBEIS/inspect_ai/pull/2986), extracted as a standalone pip-installable package.
 
-**Live dashboard:** [lucharo.github.io/eval-claude](https://lucharo.github.io/eval-claude/) — GPQA Diamond results updated twice daily across 5 Claude models.
+**Live dashboard:** [lucharo.github.io/eval-claude](https://lucharo.github.io/eval-claude/) — final GPQA Diamond history across 5 Claude models, including benchmark run capture status.
 
 ## Why?
 

@@ -1,9 +1,7 @@
 name: Benchmark
 
 on:
-  schedule:
-    - cron: '0 6,18 * * *' # Twice daily: 6am and 6pm UTC
-  workflow_dispatch: # Manual trigger
+  workflow_dispatch: # Manual trigger for the final static display snapshot
 
 permissions:
   contents: write

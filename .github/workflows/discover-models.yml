@@ -1,9 +1,7 @@
 name: Discover new models
 
 on:
-  schedule:
-    - cron: '0 12 * * 1' # Weekly on Monday at noon UTC
-  workflow_dispatch:
+  workflow_dispatch: # Manual trigger while scheduled automation is disabled
 
 permissions:
   contents: write
@@ -16,14 +14,27 @@ jobs:
 
       - uses: astral-sh/setup-uv@v6
 
+      - name: Check configuration
+        id: config
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          if [ -n "$ANTHROPIC_API_KEY" ]; then
+            echo "has_api_key=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "::warning::ANTHROPIC_API_KEY is not configured; skipping model discovery"
+            echo "has_api_key=false" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Check for new models
+        if: steps.config.outputs.has_api_key == 'true'
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
         id: check
         run: uv run python scripts/discover_models.py --update
 
       - name: Commit new models
-        if: steps.check.outputs.has_new == 'true'
+        if: steps.config.outputs.has_api_key == 'true' && steps.check.outputs.has_new == 'true'
         env:
           MODELS: ${{ steps.check.outputs.new_models }}
         run: |
