@@ -99,67 +99,12 @@
         .updated { color: #8b949e; font-size: 0.8rem; margin-top: 1rem; }
         .no-data { color: #8b949e; text-align: center; padding: 3rem; }
         .pricing-note { color: #484f58; font-size: 0.75rem; margin-top: 0.5rem; }
-        .summary-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-            gap: 1rem;
-            margin: 1.5rem 0;
-        }
-        .summary-card {
-            background: #161b22;
-            border: 1px solid #30363d;
-            border-radius: 6px;
-            padding: 1rem;
-        }
-        .summary-card .metric {
-            color: #f0f6fc;
-            font-size: 1.4rem;
-            font-weight: 700;
-            font-variant-numeric: tabular-nums;
-        }
-        .summary-card .label {
-            color: #8b949e;
-            font-size: 0.8rem;
-            margin-top: 0.35rem;
-            line-height: 1.4;
-        }
-        .history-note {
-            color: #8b949e;
-            font-size: 0.85rem;
-            margin: 0.75rem 0 1rem;
-            line-height: 1.5;
-        }
-        .run-history {
-            background: #161b22;
-            border: 1px solid #30363d;
-            border-radius: 6px;
-            padding: 1.25rem;
-            margin-top: 1.5rem;
-        }
-        .run-history summary {
-            cursor: pointer;
-            color: #58a6ff;
-            font-size: 0.9rem;
-            font-weight: 600;
-        }
-        .run-history summary:hover { text-decoration: underline; }
-        .run-state {
-            display: inline-block;
-            border-radius: 999px;
-            padding: 0.15rem 0.5rem;
-            font-size: 0.75rem;
-            font-weight: 600;
-        }
-        .run-state-captured { background: rgba(63,185,80,0.15); color: #3fb950; }
-        .run-state-partial { background: rgba(245,158,11,0.15); color: #f59e0b; }
-        .run-state-missing, .run-state-purged-invalid { background: rgba(248,81,73,0.15); color: #f85149; }
-        .run-state-failed, .run-state-cancelled, .run-state-unknown { background: rgba(139,148,158,0.18); color: #8b949e; }
     </style>
 </head>
 <body>
     <h1>Did They Nerf Claude?</h1>
     <p class="subtitle">
-        Final GPQA Diamond history across Claude models, with run-capture status for missing benchmark data.
+        GPQA Diamond benchmark tracking across Claude models, updated twice daily.
         <a href="https://github.com/lucharo/eval-claude">GitHub</a>
     </p>
 
@@ -167,7 +112,7 @@
         <p><strong>Why this exists:</strong> Model providers sometimes ship regressions.
         <a href="https://www.anthropic.com/engineering/a-postmortem-of-three-recent-issues">Anthropic acknowledged it</a>,
         <a href="https://futurism.com/the-byte/stanford-chatgpt-getting-dumber">Stanford measured it in GPT-4</a>.
-        The only way to know for sure is to keep rerunning the same benchmark on the same models and keep the capture history visible.</p>
+        The only way to know for sure is to keep running the same benchmark on the same models, automatically.</p>
         <p>This dashboard tracks Claude models on <a href="https://arxiv.org/abs/2311.12022">GPQA Diamond</a>
         (50 expert-level science questions per run) via the Claude Code CLI
         &mdash; using a regular Claude subscription, no API keys needed.</p>
@@ -217,29 +162,7 @@ uvx --from eval-claude inspect eval inspect_evals/gpqa_diamond \
         <tbody id="results-body"></tbody>
     </table>
 
-    <section id="capture-summary" class="summary-grid"></section>
-
     <p class="updated" id="updated"></p>
-
-    <details class="run-history">
-        <summary id="run-history-summary">Run capture history</summary>
-        <p class="history-note" id="run-history-note"></p>
-        <table id="runs-table">
-            <thead>
-                <tr>
-                    <th>Run</th>
-                    <th>Started</th>
-                    <th>Workflow</th>
-                    <th>Capture</th>
-                    <th>Rows</th>
-                    <th>Samples</th>
-                    <th>Artifacts</th>
-                    <th>Notes</th>
-                </tr>
-            </thead>
-            <tbody id="runs-body"></tbody>
-        </table>
-    </details>
 
     <script>
         // Model family color palette
@@ -312,68 +235,6 @@ uvx --from eval-claude inspect eval inspect_evals/gpqa_diamond \
             return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
         }
 
-        function formatInt(value) {
-            return new Intl.NumberFormat('en-US').format(value);
-        }
-
-        function getRunStateMeta(state) {
-            const meta = {
-                'captured': { label: 'Captured', note: 'Valid benchmark rows were published.' },
-                'partial': { label: 'Partial', note: 'Only some model results were published.' },
-                'missing': { label: 'Missing', note: 'Run finished without any valid benchmark artifacts.' },
-                'purged-invalid': { label: 'Purged', note: 'Invalid 0%-accuracy rows were removed later.' },
-                'failed': { label: 'Failed', note: 'Workflow failed before a clean publish.' },
-                'cancelled': { label: 'Cancelled', note: 'Workflow was cancelled.' },
-                'unknown': { label: 'Unknown', note: 'Capture state could not be classified.' },
-            };
-            return meta[state] || meta['unknown'];
-        }
-
-        function renderRunHistory(runLedger, data) {
-            const summary = runLedger.summary;
-            const totalSamples = data.reduce((sum, row) => sum + (row.samples || 0), 0);
-            const cards = [
-                { value: formatInt(summary.total_runs), label: 'benchmark workflow runs' },
-                { value: formatInt(summary.captured_runs), label: 'runs that published valid benchmark rows' },
-                { value: formatInt(summary.missing_runs + summary.partial_runs + summary.purged_invalid_runs), label: 'runs with missing, partial, or purged benchmark data' },
-                { value: formatInt(totalSamples), label: 'recorded GPQA samples in the final display' },
-            ];
-
-            const summaryEl = document.getElementById('capture-summary');
-            summaryEl.innerHTML = cards.map(card => `
-                <div class="summary-card">
-                    <div class="metric">${card.value}</div>
-                    <div class="label">${card.label}</div>
-                </div>
-            `).join('');
-
-            document.getElementById('run-history-summary').textContent = `Run capture history (${summary.total_runs} benchmark runs)`;
-            document.getElementById('run-history-note').textContent =
-                `Charts above include only valid persisted benchmark rows. This ledger keeps the missing and purged runs visible too. ` +
-                `${summary.baseline_samples ? `${formatInt(summary.baseline_samples)} baseline samples predate the GitHub Actions history.` : ''}`.trim();
-
-            const tbody = document.getElementById('runs-body');
-            tbody.innerHTML = runLedger.runs.map(run => {
-                const state = getRunStateMeta(run.capture_state);
-                const workflowStatus = run.conclusion || run.status;
-                const note = run.purged_invalid_row_count
-                    ? `${state.note} ${run.purged_invalid_row_count} invalid row(s) were purged.`
-                    : state.note;
-                return `
-                    <tr>
-                        <td><a href="${run.html_url}" style="color:#58a6ff;text-decoration:none">#${run.run_number}</a></td>
-                        <td>${formatDate(run.created_at)}</td>
-                        <td>${escapeHtml(workflowStatus || 'unknown')}</td>
-                        <td><span class="run-state run-state-${run.capture_state}">${state.label}</span></td>
-                        <td>${formatInt(run.persisted_row_count)}</td>
-                        <td>${formatInt(run.persisted_samples)}</td>
-                        <td>${formatInt(run.artifact_count)}</td>
-                        <td>${escapeHtml(note)}</td>
-                    </tr>
-                `;
-            }).join('');
-        }
-
         // Fallback pricing per million tokens (USD) if LiteLLM fetch fails
         const FALLBACK_PRICING = {
             'haiku':  { input: 1,  output: 5 },
@@ -442,13 +303,11 @@ uvx --from eval-claude inspect eval inspect_evals/gpqa_diamond \
         };
 
         async function load() {
-            const [resp, pricing, runsResp] = await Promise.all([
+            const [resp, pricing] = await Promise.all([
                 fetch('data.json'),
                 fetchPricing(),
-                fetch('runs.json').catch(() => null),
             ]);
             const data = await resp.json();
-            const runLedger = runsResp && runsResp.ok ? await runsResp.json() : null;
 
             if (data.length === 0) {
                 for (const el of document.querySelectorAll('.chart-container'))
@@ -618,11 +477,7 @@ uvx --from eval-claude inspect eval inspect_evals/gpqa_diamond \
             }
 
             const lastDate = new Date(Math.max(...data.map(d => new Date(d.date))));
-            document.getElementById('updated').textContent = `Last valid benchmark result: ${lastDate.toISOString().replace('T', ' ').slice(0, 19)} UTC`;
-
-            if (runLedger) {
-                renderRunHistory(runLedger, data);
-            }
+            document.getElementById('updated').textContent = `Last updated: ${lastDate.toISOString().replace('T', ' ').slice(0, 19)} UTC`;
         }
 
         load();
