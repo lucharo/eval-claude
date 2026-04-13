@@ -6,6 +6,7 @@
     <title>Did They Nerf Claude?</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
     <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-annotation@3"></script>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/prismjs@1/themes/prism-tomorrow.min.css">
     <script src="https://cdn.jsdelivr.net/npm/prismjs@1/prism.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/prismjs@1/components/prism-bash.min.js"></script>
@@ -185,6 +186,17 @@ uvx --from eval-claude inspect eval inspect_evals/gpqa_diamond \
     <p class="updated" id="updated"></p>
 
     <script>
+        // Fixed legend order (4.5 family, then 4.6 family).
+        const MODEL_ORDER = ['Haiku 4.5', 'Sonnet 4.5', 'Opus 4.5', 'Sonnet 4.6', 'Opus 4.6'];
+
+        // Backend transitions detected in token usage. Annotated as vertical
+        // lines so accuracy/cost/token wiggles can be cross-referenced.
+        const TRANSITIONS = [
+            { date: '2026-03-06T18:16:00Z', label: 'Opus 4.6 output ~3x shorter', color: '#a855f7' },
+            { date: '2026-03-11T18:22:00Z', label: 'Input prompt grows (all models)', color: '#8b949e' },
+            { date: '2026-04-09T06:38:00Z', label: 'Opus 4.6 output recovered', color: '#a855f7' },
+        ];
+
         // Model family color palette
         const FAMILY_COLORS = {
             'haiku':  ['#2dd4bf', '#3fb950', '#34d399', '#6ee7b7'],
@@ -343,114 +355,277 @@ uvx --from eval-claude inspect eval inspect_evals/gpqa_diamond \
                 if (!byLabel[label]) byLabel[label] = [];
                 byLabel[label].push(d);
             }
+            for (const label of Object.keys(byLabel)) {
+                byLabel[label].sort((a, b) => new Date(a.date) - new Date(b.date));
+            }
 
-            // --- Accuracy chart (with CI bands) ---
+            // Sort labels by MODEL_ORDER, with anything unknown appended.
+            const orderedLabels = MODEL_ORDER.filter(l => byLabel[l])
+                .concat(Object.keys(byLabel).filter(l => !MODEL_ORDER.includes(l)));
+
+            // --- Per-model nerf flags (>1.96 SD below the per-model mean) ---
+            const nerfFlags = {};
+            for (const label of orderedLabels) {
+                const accs = byLabel[label].map(p => p.accuracy);
+                const mean = accs.reduce((a, b) => a + b, 0) / accs.length;
+                const sd = Math.sqrt(accs.reduce((s, a) => s + (a - mean) ** 2, 0) / accs.length);
+                const cutoff = mean - 1.96 * sd;
+                nerfFlags[label] = byLabel[label].map(p => ({
+                    flagged: p.accuracy < cutoff,
+                    mean, sd, cutoff,
+                }));
+            }
+
+            // Annotation config shared by all 3 charts: vertical lines at
+            // detected backend transition dates.
+            const annotations = {};
+            TRANSITIONS.forEach((t, i) => {
+                annotations['t' + i] = {
+                    type: 'line',
+                    xMin: new Date(t.date),
+                    xMax: new Date(t.date),
+                    borderColor: t.color + 'aa',
+                    borderWidth: 1,
+                    borderDash: [4, 4],
+                    label: {
+                        display: true,
+                        content: t.label,
+                        position: 'start',
+                        backgroundColor: t.color + 'cc',
+                        color: '#0d1117',
+                        font: { size: 9, weight: '600' },
+                        padding: 3,
+                        yAdjust: i * 14,
+                    },
+                };
+            });
+
+            // Track all charts so legend clicks can be propagated.
+            const allCharts = [];
+
+            // Update CI band visibility — only show bands when exactly one
+            // model is visible (otherwise 5 overlapping bands are unreadable).
+            function updateCIBands() {
+                const acc = allCharts[0];
+                if (!acc) return;
+                const visibleModels = new Set();
+                acc.data.datasets.forEach((ds, idx) => {
+                    if (ds._modelLabel && ds._role === 'line' && acc.isDatasetVisible(idx)) {
+                        visibleModels.add(ds._modelLabel);
+                    }
+                });
+                const isolated = visibleModels.size === 1;
+                acc.data.datasets.forEach((ds, idx) => {
+                    if (ds._role === 'ci-fill') {
+                        if (isolated && visibleModels.has(ds._modelLabel)) {
+                            ds.backgroundColor = ds._color + '55';
+                        } else {
+                            ds.backgroundColor = ds._color + '12';
+                        }
+                    }
+                });
+                acc.update('none');
+            }
+
+            // Linked legend onClick: toggle visibility for the same model
+            // across all 3 charts at once.
+            function linkedLegendClick(e, legendItem, legend) {
+                const label = legendItem.text;
+                const targetState = !legend.chart.isDatasetVisible(legendItem.datasetIndex);
+                for (const chart of allCharts) {
+                    chart.data.datasets.forEach((ds, idx) => {
+                        if (ds._modelLabel === label) {
+                            chart.setDatasetVisibility(idx, targetState);
+                        }
+                    });
+                    chart.update('none');
+                }
+                updateCIBands();
+            }
+
+            const linkedLegend = {
+                labels: {
+                    color: '#c9d1d9',
+                    usePointStyle: true,
+                    padding: 20,
+                    filter: item => item.text && !item.text.startsWith('_'),
+                },
+                onClick: linkedLegendClick,
+            };
+
+            // --- Accuracy chart ---
             const accDatasets = [];
-            for (const [label, points] of Object.entries(byLabel)) {
+            for (const label of orderedLabels) {
                 const style = getStyle(label);
-                const sorted = points.slice().sort((a, b) => new Date(a.date) - new Date(b.date));
+                const points = byLabel[label];
+                const flags = nerfFlags[label];
 
                 accDatasets.push({
-                    label: label + ' CI upper',
-                    data: sorted.map(p => ({ x: new Date(p.date), y: (p.accuracy + 1.96 * (p.stderr || 0)) * 100 })),
-                    borderColor: 'transparent', backgroundColor: 'transparent',
-                    pointRadius: 0, pointHoverRadius: 0, tension: 0.3,
+                    label: '_' + label + '_ci_upper',
+                    _modelLabel: label,
+                    _role: 'ci-upper',
+                    _color: style.color,
+                    data: points.map(p => ({ x: new Date(p.date), y: (p.accuracy + 1.96 * (p.stderr || 0)) * 100 })),
+                    borderColor: 'transparent',
+                    backgroundColor: 'transparent',
+                    pointRadius: 0, pointHoverRadius: 0, tension: 0,
                 });
                 accDatasets.push({
-                    label: label + ' CI lower',
-                    data: sorted.map(p => ({ x: new Date(p.date), y: Math.max(0, (p.accuracy - 1.96 * (p.stderr || 0))) * 100 })),
-                    borderColor: 'transparent', backgroundColor: style.color + '15',
-                    fill: '-1', pointRadius: 0, pointHoverRadius: 0, tension: 0.3,
+                    label: '_' + label + '_ci_lower',
+                    _modelLabel: label,
+                    _role: 'ci-fill',
+                    _color: style.color,
+                    data: points.map(p => ({ x: new Date(p.date), y: Math.max(0, (p.accuracy - 1.96 * (p.stderr || 0))) * 100 })),
+                    borderColor: 'transparent',
+                    backgroundColor: style.color + '12',
+                    fill: '-1',
+                    pointRadius: 0, pointHoverRadius: 0, tension: 0,
                 });
                 accDatasets.push({
-                    label, data: sorted.map(p => ({ x: new Date(p.date), y: p.accuracy * 100 })),
-                    borderColor: style.color, backgroundColor: style.color + '33',
-                    tension: 0.3, pointRadius: 4, pointHoverRadius: 6,
+                    label,
+                    _modelLabel: label,
+                    _role: 'line',
+                    data: points.map((p, i) => ({
+                        x: new Date(p.date),
+                        y: p.accuracy * 100,
+                        _stderr: p.stderr,
+                        _flagged: flags[i].flagged,
+                    })),
+                    borderColor: style.color,
+                    backgroundColor: style.color,
+                    tension: 0,
+                    pointRadius: 2.5,
+                    pointHoverRadius: 6,
+                    borderWidth: 1.5,
+                });
+                // Nerf markers overlay: only flagged points.
+                accDatasets.push({
+                    label: '_' + label + '_nerf',
+                    _modelLabel: label,
+                    _role: 'nerf',
+                    data: points
+                        .map((p, i) => flags[i].flagged
+                            ? { x: new Date(p.date), y: p.accuracy * 100, _baseline: flags[i].mean }
+                            : null)
+                        .filter(Boolean),
+                    borderColor: '#ef4444',
+                    backgroundColor: '#ef4444',
+                    pointStyle: 'crossRot',
+                    pointRadius: 7,
+                    pointBorderWidth: 2,
+                    pointHoverRadius: 9,
+                    showLine: false,
                 });
             }
 
-            new Chart(document.getElementById('chart'), {
-                type: 'line', data: { datasets: accDatasets },
+            const accChart = new Chart(document.getElementById('chart'), {
+                type: 'line',
+                data: { datasets: accDatasets },
                 options: {
                     responsive: true,
+                    interaction: { mode: 'nearest', intersect: true },
                     plugins: {
-                        legend: { labels: { color: '#c9d1d9', usePointStyle: true, padding: 20, filter: item => !item.text.includes(' CI ') } },
+                        legend: linkedLegend,
+                        annotation: { annotations },
                         tooltip: {
-                            filter: item => !item.dataset.label.includes(' CI '),
+                            filter: item => item.dataset._role === 'line' || item.dataset._role === 'nerf',
                             callbacks: {
                                 label: ctx => {
-                                    const label = ctx.dataset.label;
+                                    const ds = ctx.dataset;
                                     const acc = ctx.parsed.y.toFixed(1);
-                                    const pts = byLabel[label];
-                                    if (pts) {
-                                        const pt = pts.find(p => new Date(p.date).getTime() === ctx.parsed.x);
-                                        if (pt && pt.stderr) return `${label}: ${acc}% \u00B1 ${(1.96 * pt.stderr * 100).toFixed(1)}%`;
+                                    if (ds._role === 'nerf') {
+                                        const baseline = (ctx.raw._baseline * 100).toFixed(1);
+                                        return `${ds._modelLabel}: ${acc}% (flagged \u2014 baseline ${baseline}%)`;
                                     }
-                                    return `${label}: ${acc}%`;
-                                }
-                            }
-                        }
+                                    const se = ctx.raw._stderr;
+                                    if (se) return `${ds.label}: ${acc}% \u00B1 ${(1.96 * se * 100).toFixed(1)}%`;
+                                    return `${ds.label}: ${acc}%`;
+                                },
+                            },
+                        },
                     },
                     scales: {
                         ...chartTheme,
-                        y: { min: 0, max: 100, title: { display: true, text: 'Accuracy (%)', color: '#8b949e' }, ticks: { color: '#8b949e', callback: v => v + '%' }, grid: { color: '#21262d' } }
-                    }
-                }
+                        y: {
+                            min: 50, max: 100,
+                            title: { display: true, text: 'Accuracy (%)', color: '#8b949e' },
+                            ticks: { color: '#8b949e', callback: v => v + '%' },
+                            grid: { color: '#21262d' },
+                        },
+                    },
+                },
             });
+            allCharts.push(accChart);
 
-            // --- Token usage chart ---
+            // --- Token chart ---
             const tokenDatasets = [];
-            for (const [label, points] of Object.entries(byLabel)) {
+            for (const label of orderedLabels) {
                 const style = getStyle(label);
-                const sorted = points.slice().sort((a, b) => new Date(a.date) - new Date(b.date));
                 tokenDatasets.push({
-                    label, data: sorted.map(p => ({ x: new Date(p.date), y: (p.total_tokens || 0) / 1000 })),
-                    borderColor: style.color, backgroundColor: style.color + '33',
-                    tension: 0.3, pointRadius: 4, pointHoverRadius: 6,
+                    label,
+                    _modelLabel: label,
+                    _role: 'line',
+                    data: byLabel[label].map(p => ({ x: new Date(p.date), y: (p.total_tokens || 0) / 1000 })),
+                    borderColor: style.color,
+                    backgroundColor: style.color,
+                    tension: 0,
+                    pointRadius: 2.5,
+                    pointHoverRadius: 6,
+                    borderWidth: 1.5,
                 });
             }
-
-            new Chart(document.getElementById('token-chart'), {
-                type: 'line', data: { datasets: tokenDatasets },
+            const tokenChart = new Chart(document.getElementById('token-chart'), {
+                type: 'line',
+                data: { datasets: tokenDatasets },
                 options: {
                     responsive: true,
                     plugins: {
-                        legend: { labels: { color: '#c9d1d9', usePointStyle: true, padding: 20 } },
-                        tooltip: { callbacks: { label: ctx => `${ctx.dataset.label}: ${formatTokens(ctx.parsed.y * 1000)} tokens` } }
+                        legend: linkedLegend,
+                        annotation: { annotations },
+                        tooltip: { callbacks: { label: ctx => `${ctx.dataset.label}: ${formatTokens(ctx.parsed.y * 1000)} tokens` } },
                     },
                     scales: {
                         ...chartTheme,
-                        y: { min: 0, title: { display: true, text: 'Total Tokens (K)', color: '#8b949e' }, ticks: { color: '#8b949e', callback: v => v + 'K' }, grid: { color: '#21262d' } }
-                    }
-                }
+                        y: { min: 0, title: { display: true, text: 'Total Tokens (K)', color: '#8b949e' }, ticks: { color: '#8b949e', callback: v => v + 'K' }, grid: { color: '#21262d' } },
+                    },
+                },
             });
+            allCharts.push(tokenChart);
 
             // --- Cost chart ---
             const costDatasets = [];
-            for (const [label, points] of Object.entries(byLabel)) {
+            for (const label of orderedLabels) {
                 const style = getStyle(label);
-                const sorted = points.slice().sort((a, b) => new Date(a.date) - new Date(b.date));
                 costDatasets.push({
-                    label, data: sorted.map(p => ({ x: new Date(p.date), y: estimateCost(p, pricing) })).filter(p => p.y != null),
-                    borderColor: style.color, backgroundColor: style.color + '33',
-                    tension: 0.3, pointRadius: 4, pointHoverRadius: 6,
+                    label,
+                    _modelLabel: label,
+                    _role: 'line',
+                    data: byLabel[label].map(p => ({ x: new Date(p.date), y: estimateCost(p, pricing) })).filter(p => p.y != null),
+                    borderColor: style.color,
+                    backgroundColor: style.color,
+                    tension: 0,
+                    pointRadius: 2.5,
+                    pointHoverRadius: 6,
+                    borderWidth: 1.5,
                 });
             }
-
-            new Chart(document.getElementById('cost-chart'), {
-                type: 'line', data: { datasets: costDatasets },
+            const costChart = new Chart(document.getElementById('cost-chart'), {
+                type: 'line',
+                data: { datasets: costDatasets },
                 options: {
                     responsive: true,
                     plugins: {
-                        legend: { labels: { color: '#c9d1d9', usePointStyle: true, padding: 20 } },
-                        tooltip: { callbacks: { label: ctx => `${ctx.dataset.label}: $${ctx.parsed.y.toFixed(2)}` } }
+                        legend: linkedLegend,
+                        annotation: { annotations },
+                        tooltip: { callbacks: { label: ctx => `${ctx.dataset.label}: $${ctx.parsed.y.toFixed(2)}` } },
                     },
                     scales: {
                         ...chartTheme,
-                        y: { min: 0, title: { display: true, text: 'Estimated Cost (USD)', color: '#8b949e' }, ticks: { color: '#8b949e', callback: v => '$' + v }, grid: { color: '#21262d' } }
-                    }
-                }
+                        y: { min: 0, title: { display: true, text: 'Estimated Cost (USD)', color: '#8b949e' }, ticks: { color: '#8b949e', callback: v => '$' + v }, grid: { color: '#21262d' } },
+                    },
+                },
             });
+            allCharts.push(costChart);
 
             // --- Table ---
             const latest = {};
