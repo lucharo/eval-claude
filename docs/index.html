@@ -376,35 +376,38 @@ uvx --from eval-claude inspect eval inspect_evals/gpqa_diamond \
                 }));
             }
 
-            // Annotation config shared by all 3 charts: vertical lines at
-            // detected backend transition dates.
+            // Annotation config shared by all 3 charts: subtle vertical
+            // lines at detected backend transition dates. Labels are
+            // hidden by default to reduce clutter; hover to see details.
             const annotations = {};
             TRANSITIONS.forEach((t, i) => {
                 annotations['t' + i] = {
                     type: 'line',
                     xMin: new Date(t.date),
                     xMax: new Date(t.date),
-                    borderColor: t.color + 'aa',
+                    borderColor: t.color + '66',
                     borderWidth: 1,
-                    borderDash: [4, 4],
+                    borderDash: [3, 5],
                     label: {
-                        display: true,
+                        display: false,
                         content: t.label,
                         position: 'start',
-                        backgroundColor: t.color + 'cc',
+                        backgroundColor: t.color + 'dd',
                         color: '#0d1117',
                         font: { size: 9, weight: '600' },
-                        padding: 3,
-                        yAdjust: i * 14,
+                        padding: 4,
                     },
+                    enter: ctx => { ctx.element.options.label.display = true; ctx.chart.update('none'); },
+                    leave: ctx => { ctx.element.options.label.display = false; ctx.chart.update('none'); },
                 };
             });
 
             // Track all charts so legend clicks can be propagated.
             const allCharts = [];
 
-            // Update CI band visibility — only show bands when exactly one
-            // model is visible (otherwise 5 overlapping bands are unreadable).
+            // Update CI band visibility — bands are completely hidden
+            // when multiple models are shown (they become an unreadable
+            // wash) and only light up when a single model is isolated.
             function updateCIBands() {
                 const acc = allCharts[0];
                 if (!acc) return;
@@ -420,7 +423,7 @@ uvx --from eval-claude inspect eval inspect_evals/gpqa_diamond \
                         if (isolated && visibleModels.has(ds._modelLabel)) {
                             ds.backgroundColor = ds._color + '55';
                         } else {
-                            ds.backgroundColor = ds._color + '12';
+                            ds.backgroundColor = 'transparent';
                         }
                     }
                 });
@@ -485,7 +488,7 @@ uvx --from eval-claude inspect eval inspect_evals/gpqa_diamond \
                     _color: style.color,
                     data: points.map(p => ({ x: new Date(p.date), y: Math.max(0, (p.accuracy - 1.96 * (p.stderr || 0))) * 100 })),
                     borderColor: 'transparent',
-                    backgroundColor: style.color + '12',
+                    backgroundColor: 'transparent',
                     fill: '-1',
                     pointRadius: 0, pointHoverRadius: 0, tension: 0,
                 });
@@ -502,9 +505,9 @@ uvx --from eval-claude inspect eval inspect_evals/gpqa_diamond \
                     borderColor: style.color,
                     backgroundColor: style.color,
                     tension: 0,
-                    pointRadius: 2.5,
-                    pointHoverRadius: 6,
-                    borderWidth: 1.5,
+                    pointRadius: 1.6,
+                    pointHoverRadius: 5,
+                    borderWidth: 1.1,
                 });
                 // Nerf markers overlay: only flagged points.
                 accDatasets.push({
@@ -519,9 +522,9 @@ uvx --from eval-claude inspect eval inspect_evals/gpqa_diamond \
                     borderColor: '#ef4444',
                     backgroundColor: '#ef4444',
                     pointStyle: 'crossRot',
-                    pointRadius: 7,
-                    pointBorderWidth: 2,
-                    pointHoverRadius: 9,
+                    pointRadius: 5,
+                    pointBorderWidth: 1.5,
+                    pointHoverRadius: 8,
                     showLine: false,
                 });
             }
@@ -577,9 +580,9 @@ uvx --from eval-claude inspect eval inspect_evals/gpqa_diamond \
                     borderColor: style.color,
                     backgroundColor: style.color,
                     tension: 0,
-                    pointRadius: 2.5,
-                    pointHoverRadius: 6,
-                    borderWidth: 1.5,
+                    pointRadius: 1.6,
+                    pointHoverRadius: 5,
+                    borderWidth: 1.1,
                 });
             }
             const tokenChart = new Chart(document.getElementById('token-chart'), {
@@ -612,9 +615,9 @@ uvx --from eval-claude inspect eval inspect_evals/gpqa_diamond \
                     borderColor: style.color,
                     backgroundColor: style.color,
                     tension: 0,
-                    pointRadius: 2.5,
-                    pointHoverRadius: 6,
-                    borderWidth: 1.5,
+                    pointRadius: 1.6,
+                    pointHoverRadius: 5,
+                    borderWidth: 1.1,
                 });
             }
             const costChart = new Chart(document.getElementById('cost-chart'), {
