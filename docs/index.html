@@ -188,8 +188,8 @@ uvx --from eval-claude inspect eval inspect_evals/gpqa_diamond \
     <div id="smoothing-bar" class="control-bar">
         <div class="control-group">
             <span class="label">Smoothing</span>
-            <button data-days="0" class="active" type="button">Raw</button>
-            <button data-days="3" type="button">3-day avg</button>
+            <button data-days="0" type="button">Raw</button>
+            <button data-days="3" class="active" type="button">3-day avg</button>
             <button data-days="7" type="button">7-day avg</button>
         </div>
         <div class="control-group" id="smoothing-note"></div>
@@ -475,7 +475,7 @@ uvx --from eval-claude inspect eval inspect_evals/gpqa_diamond \
 
             // Filter state (multi-select) and smoothing state.
             const selectedModels = new Set();
-            let smoothingDays = 0;
+            let smoothingDays = 3;
 
             // Compute a (possibly smoothed) data array for a line dataset.
             // The dataset stores _points + _buildY, so we can rebuild it
@@ -761,9 +761,9 @@ uvx --from eval-claude inspect eval inspect_evals/gpqa_diamond \
             });
             allCharts.push(costChart);
 
-            // Initial pass: fill line data using current smoothing setting
-            // (raw by default).
-            applyState();
+            // Initial pass: fill line data using the default smoothing
+            // setting (3-day rolling average) and sync UI state.
+            setSmoothing(smoothingDays);
 
             // --- Table ---
             const latest = {};
