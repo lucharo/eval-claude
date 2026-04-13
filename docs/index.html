@@ -100,6 +100,31 @@
         .updated { color: #8b949e; font-size: 0.8rem; margin-top: 1rem; }
         .no-data { color: #8b949e; text-align: center; padding: 3rem; }
         .pricing-note { color: #484f58; font-size: 0.75rem; margin-top: 0.5rem; }
+        #filter-bar {
+            display: none;
+            align-items: center;
+            justify-content: space-between;
+            gap: 1rem;
+            background: #161b22;
+            border: 1px solid #30363d;
+            border-radius: 6px;
+            padding: 0.55rem 0.9rem;
+            margin-bottom: 1rem;
+            font-size: 0.78rem;
+            color: #8b949e;
+        }
+        #filter-bar button {
+            background: #21262d;
+            color: #c9d1d9;
+            border: 1px solid #30363d;
+            border-radius: 4px;
+            padding: 0.3rem 0.75rem;
+            cursor: pointer;
+            font-size: 0.75rem;
+            font-family: inherit;
+        }
+        #filter-bar button:hover { background: #30363d; border-color: #484f58; }
+        #filter-summary strong { color: #c9d1d9; font-weight: 600; }
         .data-notice {
             background: #1f1a0d;
             border: 1px solid #463a1a;
@@ -152,6 +177,11 @@ uvx --from eval-claude inspect eval inspect_evals/gpqa_diamond \
   -M max_connections=10</code></pre>
     </details>
 
+    <div id="filter-bar">
+        <span id="filter-summary"></span>
+        <button id="clear-filters" type="button">Clear filters</button>
+    </div>
+
     <div class="chart-container">
         <h2>Accuracy</h2>
         <canvas id="chart"></canvas>
@@ -197,13 +227,18 @@ uvx --from eval-claude inspect eval inspect_evals/gpqa_diamond \
             { date: '2026-04-09T06:38:00Z', label: 'Opus 4.6 output recovered', color: '#a855f7' },
         ];
 
-        // Model family color palette
-        const FAMILY_COLORS = {
-            'haiku':  ['#2dd4bf', '#3fb950', '#34d399', '#6ee7b7'],
-            'sonnet': ['#3b82f6', '#58a6ff', '#79c0ff', '#93c5fd'],
-            'opus':   ['#a855f7', '#bc8cff', '#d2a8ff', '#c084fc'],
+        // Colorblind-safe palette (Okabe-Ito) with family grouping preserved
+        // via lightness pairs: Sonnets share the blue family (4.5 lighter,
+        // 4.6 darker), Opuses share the warm family (4.5 orange, 4.6
+        // vermillion), Haiku is the bluish-green outlier.
+        const MODEL_COLORS = {
+            'Haiku 4.5':  '#009E73',
+            'Sonnet 4.5': '#56B4E9',
+            'Sonnet 4.6': '#0072B2',
+            'Opus 4.5':   '#E69F00',
+            'Opus 4.6':   '#D55E00',
         };
-        const FALLBACK_COLORS = ['#f59e0b', '#ef4444', '#ec4899', '#14b8a6', '#8b5cf6'];
+        const FALLBACK_COLORS = ['#CC79A7', '#F0E442', '#999999', '#000000'];
         let fallbackIdx = 0;
 
         function getLabel(model) {
@@ -224,21 +259,11 @@ uvx --from eval-claude inspect eval inspect_evals/gpqa_diamond \
         }
 
         const assignedColors = {};
-        const familyVersionIdx = {};
 
         function getStyle(label) {
             if (assignedColors[label]) return assignedColors[label];
-            const lower = label.toLowerCase();
-            for (const [family, palette] of Object.entries(FAMILY_COLORS)) {
-                if (lower.includes(family)) {
-                    const idx = familyVersionIdx[family] || 0;
-                    familyVersionIdx[family] = idx + 1;
-                    const color = palette[idx % palette.length];
-                    assignedColors[label] = { color };
-                    return assignedColors[label];
-                }
-            }
-            const color = FALLBACK_COLORS[fallbackIdx++ % FALLBACK_COLORS.length];
+            const color = MODEL_COLORS[label]
+                || FALLBACK_COLORS[fallbackIdx++ % FALLBACK_COLORS.length];
             assignedColors[label] = { color };
             return assignedColors[label];
         }
@@ -430,28 +455,50 @@ uvx --from eval-claude inspect eval inspect_evals/gpqa_diamond \
                 acc.update('none');
             }
 
-            // Linked legend onClick: solo-select the clicked model across
-            // all 3 charts. Clicking the currently-soloed model restores
-            // all models.
-            function linkedLegendClick(e, legendItem, legend) {
-                const label = legendItem.text;
-                const acc = allCharts[0];
-                const visibleModels = new Set();
-                acc.data.datasets.forEach((ds, idx) => {
-                    if (ds._role === 'line' && acc.isDatasetVisible(idx)) {
-                        visibleModels.add(ds._modelLabel);
-                    }
-                });
-                const isSoloed = visibleModels.size === 1 && visibleModels.has(label);
+            // Additive multi-select: click a legend item to add it to
+            // (or remove it from) the visible set. Empty set means "show
+            // all". The Clear filters button resets to that empty state.
+            const selectedModels = new Set();
+
+            function applyVisibility() {
+                const showAll = selectedModels.size === 0;
                 for (const chart of allCharts) {
                     chart.data.datasets.forEach((ds, idx) => {
                         if (!ds._modelLabel) return;
-                        const show = isSoloed ? true : (ds._modelLabel === label);
-                        chart.setDatasetVisibility(idx, show);
+                        const visible = showAll || selectedModels.has(ds._modelLabel);
+                        chart.setDatasetVisibility(idx, visible);
                     });
                     chart.update('none');
                 }
                 updateCIBands();
+                updateFilterBar();
+            }
+
+            function updateFilterBar() {
+                const bar = document.getElementById('filter-bar');
+                if (selectedModels.size === 0) {
+                    bar.style.display = 'none';
+                    return;
+                }
+                bar.style.display = 'flex';
+                const ordered = orderedLabels.filter(l => selectedModels.has(l));
+                document.getElementById('filter-summary').innerHTML =
+                    `Showing <strong>${ordered.join(', ')}</strong> &middot; click another model to add it, click again to remove`;
+            }
+
+            document.getElementById('clear-filters').onclick = () => {
+                selectedModels.clear();
+                applyVisibility();
+            };
+
+            function linkedLegendClick(e, legendItem, legend) {
+                const label = legendItem.text;
+                if (selectedModels.has(label)) {
+                    selectedModels.delete(label);
+                } else {
+                    selectedModels.add(label);
+                }
+                applyVisibility();
             }
 
             const linkedLegend = {
