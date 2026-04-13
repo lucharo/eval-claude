@@ -4,9 +4,9 @@ Run [inspect_ai](https://inspect.aisi.org.uk/) evals through the **Claude Code C
 
 Based on [UKGovernmentBEIS/inspect_ai#2986](https://github.com/UKGovernmentBEIS/inspect_ai/pull/2986), extracted as a standalone pip-installable package.
 
-**Live dashboard:** [lucharo.github.io/eval-claude](https://lucharo.github.io/eval-claude/) — final GPQA Diamond history across 5 Claude models, including benchmark run capture status.
+**Live dashboard:** [lucharo.github.io/eval-claude](https://lucharo.github.io/eval-claude/) — harmonized GPQA Diamond history across 5 Claude models (50 samples, 1 epoch per run).
 
-> **Disclaimer:** the dashboard shows all valid benchmark rows that were actually persisted, plus a run ledger for missing or partial runs. Some historical workflow runs produced no publishable result because of auth/rate-limit failures or earlier invalid 0%-accuracy outputs that were later purged.
+> **Disclaimer:** the dashboard shows only completed, harmonized runs (n=50, 1 epoch). 27 historical rows were removed: 6 early runs that used a 200-sample config, plus 21 rows where the Claude subscription weekly usage cap or partial backend failures caused generations not to complete. The remaining trend is informative but not exhaustive, and the benchmark is no longer scheduled — workflows are manual-only.
 
 ## Why?
 

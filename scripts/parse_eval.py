@@ -66,6 +66,21 @@ def parse_log(log_path: str) -> dict:
         output_tokens += usage.output_tokens
         total_tokens += usage.total_tokens
 
+    # Guard against hidden failure modes (weekly usage-cap hits, auth errors
+    # returned as short text content, etc.). Real gpqa_diamond runs produce
+    # ~2000+ output tokens per sample with CoT reasoning; anything below ~1000
+    # almost always indicates the CLI short-circuited and should not be
+    # captured as a legitimate benchmark result.
+    MIN_OUTPUT_TOKENS_PER_SAMPLE = 1000
+    out_per_sample = output_tokens / completed
+    if out_per_sample < MIN_OUTPUT_TOKENS_PER_SAMPLE:
+        print(
+            f"SKIP: {out_per_sample:.0f} output tokens/sample < "
+            f"{MIN_OUTPUT_TOKENS_PER_SAMPLE} — likely usage limit or auth failure",
+            file=sys.stderr,
+        )
+        sys.exit(2)
+
     return {
         "date": start_dt.strftime("%Y-%m-%dT%H:%M:%SZ"),
         "model": log.eval.model,

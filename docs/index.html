@@ -99,6 +99,18 @@
         .updated { color: #8b949e; font-size: 0.8rem; margin-top: 1rem; }
         .no-data { color: #8b949e; text-align: center; padding: 3rem; }
         .pricing-note { color: #484f58; font-size: 0.75rem; margin-top: 0.5rem; }
+        .data-notice {
+            background: #1f1a0d;
+            border: 1px solid #463a1a;
+            border-left: 3px solid #d4a017;
+            border-radius: 6px;
+            padding: 0.9rem 1.1rem;
+            margin-bottom: 1.5rem;
+            font-size: 0.8rem;
+            line-height: 1.55;
+            color: #c9b888;
+        }
+        .data-notice strong { color: #f0d680; }
     </style>
 </head>
 <body>
@@ -116,6 +128,14 @@
         <p>This dashboard tracks Claude models on <a href="https://arxiv.org/abs/2311.12022">GPQA Diamond</a>
         (50 expert-level science questions per run) via the Claude Code CLI
         &mdash; using a regular Claude subscription, no API keys needed.</p>
+    </div>
+
+    <div class="data-notice">
+        <strong>Note on the data:</strong> 27 rows have been removed from this history to keep the
+        experiment consistent. Six early runs used 200 samples instead of 50 (different config),
+        and 21 rows were affected by Claude subscription weekly usage-cap hits or partial backend
+        failures where generations did not complete properly. Only completed n=50, 1-epoch runs
+        remain. The trend is still informative but not exhaustive.
     </div>
 
     <details class="try-it">

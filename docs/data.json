@@ -1,71 +1,5 @@
 [
   {
-    "date": "2026-02-27T17:42:53Z",
-    "model": "claude-code/claude-haiku-4-5-20251001",
-    "task": "inspect_evals/gpqa_diamond",
-    "accuracy": 0.615,
-    "stderr": 0.058558360911598786,
-    "duration_seconds": 762,
-    "total_tokens": 748898,
-    "samples": 200
-  },
-  {
-    "date": "2026-02-27T17:55:57Z",
-    "model": "claude-code/claude-sonnet-4-6",
-    "task": "inspect_evals/gpqa_diamond",
-    "accuracy": 0.785,
-    "stderr": 0.04792106605062716,
-    "duration_seconds": 800,
-    "total_tokens": 787384,
-    "samples": 200
-  },
-  {
-    "date": "2026-02-27T18:09:36Z",
-    "model": "claude-code/claude-opus-4-6",
-    "task": "inspect_evals/gpqa_diamond",
-    "accuracy": 0.86,
-    "stderr": 0.04469853670617718,
-    "duration_seconds": 853,
-    "total_tokens": 852839,
-    "samples": 200
-  },
-  {
-    "date": "2026-02-28T06:12:18Z",
-    "model": "claude-code/claude-haiku-4-5-20251001",
-    "task": "inspect_evals/gpqa_diamond",
-    "accuracy": 0.75,
-    "stderr": 0.0479157423749955,
-    "duration_seconds": 1381,
-    "input_tokens": 695481,
-    "output_tokens": 1256151,
-    "total_tokens": 1951632,
-    "samples": 200
-  },
-  {
-    "date": "2026-02-28T06:12:20Z",
-    "model": "claude-code/claude-opus-4-5-20251101",
-    "task": "inspect_evals/gpqa_diamond",
-    "accuracy": 0.77,
-    "stderr": 0.04335425972998148,
-    "duration_seconds": 2162,
-    "input_tokens": 633020,
-    "output_tokens": 1035577,
-    "total_tokens": 1668597,
-    "samples": 200
-  },
-  {
-    "date": "2026-02-28T06:12:20Z",
-    "model": "claude-code/claude-sonnet-4-5-20250929",
-    "task": "inspect_evals/gpqa_diamond",
-    "accuracy": 0.795,
-    "stderr": 0.04666970349691325,
-    "duration_seconds": 1773,
-    "input_tokens": 1980,
-    "output_tokens": 815108,
-    "total_tokens": 860672,
-    "samples": 200
-  },
-  {
     "date": "2026-02-28T22:55:56Z",
     "model": "claude-code/claude-haiku-4-5-20251001",
     "task": "inspect_evals/gpqa_diamond",
@@ -390,18 +324,6 @@
     "samples": 50
   },
   {
-    "date": "2026-03-03T18:19:48Z",
-    "model": "claude-code/claude-opus-4-6",
-    "task": "inspect_evals/gpqa_diamond",
-    "accuracy": 0.62,
-    "stderr": 0.06934092056863769,
-    "duration_seconds": 771,
-    "input_tokens": 113996,
-    "output_tokens": 139104,
-    "total_tokens": 253100,
-    "samples": 50
-  },
-  {
     "date": "2026-03-03T18:21:21Z",
     "model": "claude-code/claude-sonnet-4-5-20250929",
     "task": "inspect_evals/gpqa_diamond",
@@ -411,78 +333,6 @@
     "input_tokens": 173069,
     "output_tokens": 197254,
     "total_tokens": 370323,
-    "samples": 50
-  },
-  {
-    "date": "2026-03-03T18:19:49Z",
-    "model": "claude-code/claude-sonnet-4-6",
-    "task": "inspect_evals/gpqa_diamond",
-    "accuracy": 0.52,
-    "stderr": 0.0713714056959817,
-    "duration_seconds": 876,
-    "input_tokens": 100158,
-    "output_tokens": 169106,
-    "total_tokens": 269264,
-    "samples": 50
-  },
-  {
-    "date": "2026-03-04T18:18:44Z",
-    "model": "claude-code/claude-haiku-4-5-20251001",
-    "task": "inspect_evals/gpqa_diamond",
-    "accuracy": 0.42,
-    "stderr": 0.07050835816716038,
-    "duration_seconds": 368,
-    "input_tokens": 138351,
-    "output_tokens": 267257,
-    "total_tokens": 405608,
-    "samples": 50
-  },
-  {
-    "date": "2026-03-04T18:18:40Z",
-    "model": "claude-code/claude-opus-4-5-20251101",
-    "task": "inspect_evals/gpqa_diamond",
-    "accuracy": 0.46,
-    "stderr": 0.07119963311072637,
-    "duration_seconds": 401,
-    "input_tokens": 109177,
-    "output_tokens": 138102,
-    "total_tokens": 247279,
-    "samples": 50
-  },
-  {
-    "date": "2026-03-04T18:18:40Z",
-    "model": "claude-code/claude-opus-4-6",
-    "task": "inspect_evals/gpqa_diamond",
-    "accuracy": 0.9,
-    "stderr": 0.04285714285714286,
-    "duration_seconds": 672,
-    "input_tokens": 177178,
-    "output_tokens": 85753,
-    "total_tokens": 262931,
-    "samples": 50
-  },
-  {
-    "date": "2026-03-04T18:18:52Z",
-    "model": "claude-code/claude-sonnet-4-5-20250929",
-    "task": "inspect_evals/gpqa_diamond",
-    "accuracy": 0.52,
-    "stderr": 0.0713714056959817,
-    "duration_seconds": 366,
-    "input_tokens": 112746,
-    "output_tokens": 118689,
-    "total_tokens": 231435,
-    "samples": 50
-  },
-  {
-    "date": "2026-03-04T18:18:40Z",
-    "model": "claude-code/claude-sonnet-4-6",
-    "task": "inspect_evals/gpqa_diamond",
-    "accuracy": 0.64,
-    "stderr": 0.06857142857142856,
-    "duration_seconds": 667,
-    "input_tokens": 127045,
-    "output_tokens": 134559,
-    "total_tokens": 261604,
     "samples": 50
   },
   {
@@ -1887,18 +1737,6 @@
     "input_tokens": 294319,
     "output_tokens": 265813,
     "total_tokens": 560132,
-    "samples": 50
-  },
-  {
-    "date": "2026-03-18T06:29:31Z",
-    "model": "claude-code/claude-opus-4-6",
-    "task": "inspect_evals/gpqa_diamond",
-    "accuracy": 0.4,
-    "stderr": 0.06998542122237651,
-    "duration_seconds": 929,
-    "input_tokens": 116888,
-    "output_tokens": 38167,
-    "total_tokens": 155055,
     "samples": 50
   },
   {
@@ -3546,66 +3384,6 @@
     "samples": 50
   },
   {
-    "date": "2026-04-01T18:24:05Z",
-    "model": "claude-code/claude-haiku-4-5-20251001",
-    "task": "inspect_evals/gpqa_diamond",
-    "accuracy": 0.34,
-    "stderr": 0.0676726816132972,
-    "duration_seconds": 126,
-    "input_tokens": 129409,
-    "output_tokens": 91207,
-    "total_tokens": 220616,
-    "samples": 50
-  },
-  {
-    "date": "2026-04-01T18:24:06Z",
-    "model": "claude-code/claude-opus-4-5-20251101",
-    "task": "inspect_evals/gpqa_diamond",
-    "accuracy": 0.26,
-    "stderr": 0.06266203485560375,
-    "duration_seconds": 382,
-    "input_tokens": 98407,
-    "output_tokens": 79328,
-    "total_tokens": 177735,
-    "samples": 50
-  },
-  {
-    "date": "2026-04-01T18:24:07Z",
-    "model": "claude-code/claude-opus-4-6",
-    "task": "inspect_evals/gpqa_diamond",
-    "accuracy": 0.38,
-    "stderr": 0.06934092056863769,
-    "duration_seconds": 161,
-    "input_tokens": 134697,
-    "output_tokens": 20467,
-    "total_tokens": 155164,
-    "samples": 50
-  },
-  {
-    "date": "2026-04-01T18:24:04Z",
-    "model": "claude-code/claude-sonnet-4-5-20250929",
-    "task": "inspect_evals/gpqa_diamond",
-    "accuracy": 0.28,
-    "stderr": 0.06414269805898185,
-    "duration_seconds": 105,
-    "input_tokens": 98439,
-    "output_tokens": 34022,
-    "total_tokens": 132461,
-    "samples": 50
-  },
-  {
-    "date": "2026-04-01T18:24:07Z",
-    "model": "claude-code/claude-sonnet-4-6",
-    "task": "inspect_evals/gpqa_diamond",
-    "accuracy": 0.28,
-    "stderr": 0.06414269805898185,
-    "duration_seconds": 613,
-    "input_tokens": 97718,
-    "output_tokens": 33082,
-    "total_tokens": 130800,
-    "samples": 50
-  },
-  {
     "date": "2026-04-03T18:17:04Z",
     "model": "claude-code/claude-haiku-4-5-20251001",
     "task": "inspect_evals/gpqa_diamond",
@@ -4086,66 +3864,6 @@
     "samples": 50
   },
   {
-    "date": "2026-04-07T18:23:55Z",
-    "model": "claude-code/claude-haiku-4-5-20251001",
-    "task": "inspect_evals/gpqa_diamond",
-    "accuracy": 0.16,
-    "stderr": 0.05237229365663816,
-    "duration_seconds": 34,
-    "input_tokens": 49138,
-    "output_tokens": 16114,
-    "total_tokens": 65252,
-    "samples": 50
-  },
-  {
-    "date": "2026-04-07T18:23:48Z",
-    "model": "claude-code/claude-opus-4-5-20251101",
-    "task": "inspect_evals/gpqa_diamond",
-    "accuracy": 0.16,
-    "stderr": 0.05237229365663816,
-    "duration_seconds": 41,
-    "input_tokens": 49122,
-    "output_tokens": 13205,
-    "total_tokens": 62327,
-    "samples": 50
-  },
-  {
-    "date": "2026-04-07T18:23:49Z",
-    "model": "claude-code/claude-opus-4-6",
-    "task": "inspect_evals/gpqa_diamond",
-    "accuracy": 0.22,
-    "stderr": 0.05917804336345138,
-    "duration_seconds": 68,
-    "input_tokens": 67326,
-    "output_tokens": 9105,
-    "total_tokens": 76431,
-    "samples": 50
-  },
-  {
-    "date": "2026-04-07T18:23:56Z",
-    "model": "claude-code/claude-sonnet-4-5-20250929",
-    "task": "inspect_evals/gpqa_diamond",
-    "accuracy": 0.16,
-    "stderr": 0.05237229365663816,
-    "duration_seconds": 59,
-    "input_tokens": 49138,
-    "output_tokens": 16729,
-    "total_tokens": 65867,
-    "samples": 50
-  },
-  {
-    "date": "2026-04-07T18:23:57Z",
-    "model": "claude-code/claude-sonnet-4-6",
-    "task": "inspect_evals/gpqa_diamond",
-    "accuracy": 0.16,
-    "stderr": 0.05237229365663816,
-    "duration_seconds": 47,
-    "input_tokens": 48874,
-    "output_tokens": 9804,
-    "total_tokens": 58678,
-    "samples": 50
-  },
-  {
     "date": "2026-04-08T18:32:04Z",
     "model": "claude-code/claude-haiku-4-5-20251001",
     "task": "inspect_evals/gpqa_diamond",
@@ -4338,30 +4056,6 @@
     "samples": 50
   },
   {
-    "date": "2026-04-10T06:43:03Z",
-    "model": "claude-code/claude-opus-4-5-20251101",
-    "task": "inspect_evals/gpqa_diamond",
-    "accuracy": 0.7,
-    "stderr": 0.06546536707079771,
-    "duration_seconds": 527,
-    "input_tokens": 263145,
-    "output_tokens": 224128,
-    "total_tokens": 487273,
-    "samples": 50
-  },
-  {
-    "date": "2026-04-10T06:43:00Z",
-    "model": "claude-code/claude-opus-4-6",
-    "task": "inspect_evals/gpqa_diamond",
-    "accuracy": 0.6,
-    "stderr": 0.06998542122237651,
-    "duration_seconds": 869,
-    "input_tokens": 190389,
-    "output_tokens": 134999,
-    "total_tokens": 325388,
-    "samples": 50
-  },
-  {
     "date": "2026-04-10T06:43:02Z",
     "model": "claude-code/claude-sonnet-4-5-20250929",
     "task": "inspect_evals/gpqa_diamond",
@@ -4371,18 +4065,6 @@
     "input_tokens": 292939,
     "output_tokens": 209905,
     "total_tokens": 502844,
-    "samples": 50
-  },
-  {
-    "date": "2026-04-10T06:42:59Z",
-    "model": "claude-code/claude-sonnet-4-6",
-    "task": "inspect_evals/gpqa_diamond",
-    "accuracy": 0.54,
-    "stderr": 0.07119963311072636,
-    "duration_seconds": 799,
-    "input_tokens": 166685,
-    "output_tokens": 146491,
-    "total_tokens": 313176,
     "samples": 50
   },
   {
