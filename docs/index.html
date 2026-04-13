@@ -100,8 +100,8 @@
         .updated { color: #8b949e; font-size: 0.8rem; margin-top: 1rem; }
         .no-data { color: #8b949e; text-align: center; padding: 3rem; }
         .pricing-note { color: #484f58; font-size: 0.75rem; margin-top: 0.5rem; }
-        #filter-bar {
-            display: none;
+        .control-bar {
+            display: flex;
             align-items: center;
             justify-content: space-between;
             gap: 1rem;
@@ -109,11 +109,11 @@
             border: 1px solid #30363d;
             border-radius: 6px;
             padding: 0.55rem 0.9rem;
-            margin-bottom: 1rem;
+            margin-bottom: 0.75rem;
             font-size: 0.78rem;
             color: #8b949e;
         }
-        #filter-bar button {
+        .control-bar button {
             background: #21262d;
             color: #c9d1d9;
             border: 1px solid #30363d;
@@ -123,7 +123,15 @@
             font-size: 0.75rem;
             font-family: inherit;
         }
-        #filter-bar button:hover { background: #30363d; border-color: #484f58; }
+        .control-bar button:hover { background: #30363d; border-color: #484f58; }
+        .control-bar button.active {
+            background: #1f6feb33;
+            border-color: #58a6ff;
+            color: #58a6ff;
+        }
+        .control-group { display: flex; align-items: center; gap: 0.4rem; }
+        .control-group .label { color: #8b949e; margin-right: 0.25rem; }
+        #filter-bar { display: none; }
         #filter-summary strong { color: #c9d1d9; font-weight: 600; }
         .data-notice {
             background: #1f1a0d;
@@ -177,7 +185,17 @@ uvx --from eval-claude inspect eval inspect_evals/gpqa_diamond \
   -M max_connections=10</code></pre>
     </details>
 
-    <div id="filter-bar">
+    <div id="smoothing-bar" class="control-bar">
+        <div class="control-group">
+            <span class="label">Smoothing</span>
+            <button data-days="0" class="active" type="button">Raw</button>
+            <button data-days="3" type="button">3-day avg</button>
+            <button data-days="7" type="button">7-day avg</button>
+        </div>
+        <div class="control-group" id="smoothing-note"></div>
+    </div>
+
+    <div id="filter-bar" class="control-bar">
         <span id="filter-summary"></span>
         <button id="clear-filters" type="button">Clear filters</button>
     </div>
@@ -455,17 +473,50 @@ uvx --from eval-claude inspect eval inspect_evals/gpqa_diamond \
                 acc.update('none');
             }
 
-            // Additive multi-select: click a legend item to add it to
-            // (or remove it from) the visible set. Empty set means "show
-            // all". The Clear filters button resets to that empty state.
+            // Filter state (multi-select) and smoothing state.
             const selectedModels = new Set();
+            let smoothingDays = 0;
 
-            function applyVisibility() {
+            // Compute a (possibly smoothed) data array for a line dataset.
+            // The dataset stores _points + _buildY, so we can rebuild it
+            // whenever smoothing changes.
+            function rebuildLineData(ds) {
+                if (!ds._points || !ds._buildY) return;
+                const raw = ds._points
+                    .map(p => ({ t: new Date(p.date).getTime(), y: ds._buildY(p), p }))
+                    .filter(d => d.y != null);
+                if (smoothingDays === 0) {
+                    ds.data = raw.map(d => ({
+                        x: new Date(d.t),
+                        y: d.y,
+                        ...(ds._buildExtras ? ds._buildExtras(d.p) : {}),
+                    }));
+                    return;
+                }
+                const winMs = smoothingDays * 24 * 3600 * 1000;
+                ds.data = raw.map(d => {
+                    const cutoff = d.t - winMs;
+                    const window = raw.filter(r => r.t >= cutoff && r.t <= d.t);
+                    const avg = window.reduce((s, r) => s + r.y, 0) / window.length;
+                    return { x: new Date(d.t), y: avg, _smoothed: true, _n: window.length };
+                });
+            }
+
+            function applyState() {
                 const showAll = selectedModels.size === 0;
+                const smoothed = smoothingDays > 0;
                 for (const chart of allCharts) {
                     chart.data.datasets.forEach((ds, idx) => {
                         if (!ds._modelLabel) return;
-                        const visible = showAll || selectedModels.has(ds._modelLabel);
+                        if (ds._role === 'line') rebuildLineData(ds);
+                        const inFilter = showAll || selectedModels.has(ds._modelLabel);
+                        // Hide CI bands and nerf markers entirely when smoothing
+                        // (per-point stderr and per-point flags don't transfer
+                        // to a rolling average in a meaningful way).
+                        let visible = inFilter;
+                        if (smoothed && (ds._role === 'ci-fill' || ds._role === 'ci-upper' || ds._role === 'nerf')) {
+                            visible = false;
+                        }
                         chart.setDatasetVisibility(idx, visible);
                     });
                     chart.update('none');
@@ -486,9 +537,23 @@ uvx --from eval-claude inspect eval inspect_evals/gpqa_diamond \
                     `Showing <strong>${ordered.join(', ')}</strong> &middot; click another model to add it, click again to remove`;
             }
 
+            function setSmoothing(days) {
+                smoothingDays = days;
+                document.querySelectorAll('#smoothing-bar button[data-days]').forEach(b => {
+                    b.classList.toggle('active', Number(b.dataset.days) === days);
+                });
+                document.getElementById('smoothing-note').textContent =
+                    days === 0 ? '' : `error bands and nerf markers hidden`;
+                applyState();
+            }
+
+            document.querySelectorAll('#smoothing-bar button[data-days]').forEach(b => {
+                b.onclick = () => setSmoothing(Number(b.dataset.days));
+            });
+
             document.getElementById('clear-filters').onclick = () => {
                 selectedModels.clear();
-                applyVisibility();
+                applyState();
             };
 
             function linkedLegendClick(e, legendItem, legend) {
@@ -498,7 +563,7 @@ uvx --from eval-claude inspect eval inspect_evals/gpqa_diamond \
                 } else {
                     selectedModels.add(label);
                 }
-                applyVisibility();
+                applyState();
             }
 
             const linkedLegend = {
@@ -543,12 +608,10 @@ uvx --from eval-claude inspect eval inspect_evals/gpqa_diamond \
                     label,
                     _modelLabel: label,
                     _role: 'line',
-                    data: points.map((p, i) => ({
-                        x: new Date(p.date),
-                        y: p.accuracy * 100,
-                        _stderr: p.stderr,
-                        _flagged: flags[i].flagged,
-                    })),
+                    _points: points,
+                    _buildY: p => p.accuracy * 100,
+                    _buildExtras: p => ({ _stderr: p.stderr }),
+                    data: [],
                     borderColor: style.color,
                     backgroundColor: style.color,
                     tension: 0,
@@ -595,7 +658,10 @@ uvx --from eval-claude inspect eval inspect_evals/gpqa_diamond \
                                         const baseline = (ctx.raw._baseline * 100).toFixed(1);
                                         return `${ds._modelLabel}: ${acc}% (flagged \u2014 baseline ${baseline}%)`;
                                     }
-                                    const se = ctx.raw._stderr;
+                                    if (ctx.raw && ctx.raw._smoothed) {
+                                        return `${ds.label}: ${acc}% (${smoothingDays}d avg, n=${ctx.raw._n})`;
+                                    }
+                                    const se = ctx.raw && ctx.raw._stderr;
                                     if (se) return `${ds.label}: ${acc}% \u00B1 ${(1.96 * se * 100).toFixed(1)}%`;
                                     return `${ds.label}: ${acc}%`;
                                 },
@@ -623,7 +689,9 @@ uvx --from eval-claude inspect eval inspect_evals/gpqa_diamond \
                     label,
                     _modelLabel: label,
                     _role: 'line',
-                    data: byLabel[label].map(p => ({ x: new Date(p.date), y: (p.total_tokens || 0) / 1000 })),
+                    _points: byLabel[label],
+                    _buildY: p => (p.total_tokens || 0) / 1000,
+                    data: [],
                     borderColor: style.color,
                     backgroundColor: style.color,
                     tension: 0,
@@ -640,7 +708,10 @@ uvx --from eval-claude inspect eval inspect_evals/gpqa_diamond \
                     plugins: {
                         legend: linkedLegend,
                         annotation: { annotations },
-                        tooltip: { callbacks: { label: ctx => `${ctx.dataset.label}: ${formatTokens(ctx.parsed.y * 1000)} tokens` } },
+                        tooltip: { callbacks: { label: ctx => {
+                            const sfx = (ctx.raw && ctx.raw._smoothed) ? ` (${smoothingDays}d avg)` : '';
+                            return `${ctx.dataset.label}: ${formatTokens(ctx.parsed.y * 1000)} tokens${sfx}`;
+                        } } },
                     },
                     scales: {
                         ...chartTheme,
@@ -658,7 +729,9 @@ uvx --from eval-claude inspect eval inspect_evals/gpqa_diamond \
                     label,
                     _modelLabel: label,
                     _role: 'line',
-                    data: byLabel[label].map(p => ({ x: new Date(p.date), y: estimateCost(p, pricing) })).filter(p => p.y != null),
+                    _points: byLabel[label],
+                    _buildY: p => estimateCost(p, pricing),
+                    data: [],
                     borderColor: style.color,
                     backgroundColor: style.color,
                     tension: 0,
@@ -675,7 +748,10 @@ uvx --from eval-claude inspect eval inspect_evals/gpqa_diamond \
                     plugins: {
                         legend: linkedLegend,
                         annotation: { annotations },
-                        tooltip: { callbacks: { label: ctx => `${ctx.dataset.label}: $${ctx.parsed.y.toFixed(2)}` } },
+                        tooltip: { callbacks: { label: ctx => {
+                            const sfx = (ctx.raw && ctx.raw._smoothed) ? ` (${smoothingDays}d avg)` : '';
+                            return `${ctx.dataset.label}: $${ctx.parsed.y.toFixed(2)}${sfx}`;
+                        } } },
                     },
                     scales: {
                         ...chartTheme,
@@ -684,6 +760,10 @@ uvx --from eval-claude inspect eval inspect_evals/gpqa_diamond \
                 },
             });
             allCharts.push(costChart);
+
+            // Initial pass: fill line data using current smoothing setting
+            // (raw by default).
+            applyState();
 
             // --- Table ---
             const latest = {};
