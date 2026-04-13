@@ -427,16 +427,24 @@ uvx --from eval-claude inspect eval inspect_evals/gpqa_diamond \
                 acc.update('none');
             }
 
-            // Linked legend onClick: toggle visibility for the same model
-            // across all 3 charts at once.
+            // Linked legend onClick: solo-select the clicked model across
+            // all 3 charts. Clicking the currently-soloed model restores
+            // all models.
             function linkedLegendClick(e, legendItem, legend) {
                 const label = legendItem.text;
-                const targetState = !legend.chart.isDatasetVisible(legendItem.datasetIndex);
+                const acc = allCharts[0];
+                const visibleModels = new Set();
+                acc.data.datasets.forEach((ds, idx) => {
+                    if (ds._role === 'line' && acc.isDatasetVisible(idx)) {
+                        visibleModels.add(ds._modelLabel);
+                    }
+                });
+                const isSoloed = visibleModels.size === 1 && visibleModels.has(label);
                 for (const chart of allCharts) {
                     chart.data.datasets.forEach((ds, idx) => {
-                        if (ds._modelLabel === label) {
-                            chart.setDatasetVisibility(idx, targetState);
-                        }
+                        if (!ds._modelLabel) return;
+                        const show = isSoloed ? true : (ds._modelLabel === label);
+                        chart.setDatasetVisibility(idx, show);
                     });
                     chart.update('none');
                 }
