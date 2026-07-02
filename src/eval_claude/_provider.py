@@ -275,12 +275,19 @@ class ClaudeCodeAPI(ModelAPI):
         cache_creation = usage_data.get("cache_creation_input_tokens", 0)
         cache_read = usage_data.get("cache_read_input_tokens", 0)
 
+        # Keep "input" inclusive of cache tokens: the export pipeline
+        # (parse_eval.py -> docs/data.json -> dashboard) only persists
+        # input/output/total and prices input + output, so excluding cache
+        # tokens from "input" would drop them from cost estimates entirely
+        # and break input + output == total reconciliation. Revisit once
+        # cache_creation/cache_read are carried through export and priced.
+        total_input = input_tokens + cache_creation + cache_read
         return {
-            "input": input_tokens,
+            "input": total_input,
             "output": output_tokens,
             "cache_creation": cache_creation,
             "cache_read": cache_read,
-            "total": input_tokens + output_tokens + cache_creation + cache_read,
+            "total": total_input + output_tokens,
         }
 
     def _extract_metadata(

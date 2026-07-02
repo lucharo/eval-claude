@@ -343,7 +343,7 @@ async def test_e2e_successful_generation(mock_cli_path, sample_json_response):
         assert result.error is None
         assert result.choices[0].message.content == "The answer is 4."
         assert result.choices[0].stop_reason == "stop"
-        assert result.usage.input_tokens == 100
+        assert result.usage.input_tokens == 115  # 100 input + 10 cache_creation + 5 cache_read
         assert result.usage.output_tokens == 50
         assert result.metadata["cost_usd"] == 0.001
         assert result.metadata["session_id"] == "test-session-123"
@@ -492,7 +492,7 @@ def test_run_cli_success(mock_cli_path, sample_json_response):
 
         assert result.error is None
         assert "4" in result.choices[0].message.content
-        assert result.usage.input_tokens == 100
+        assert result.usage.input_tokens == 115  # 100 input + 10 cache_creation + 5 cache_read
         assert result.usage.output_tokens == 50
 
 
@@ -565,7 +565,7 @@ def test_parse_json_response_success(mock_cli_path, sample_json_response):
     result = api._parse_json_response(json.dumps(sample_json_response))
 
     assert result.choices[0].message.content == "The answer is 4."
-    assert result.usage.input_tokens == 100
+    assert result.usage.input_tokens == 115  # 100 input + 10 cache_creation + 5 cache_read
     assert result.usage.output_tokens == 50
     assert result.metadata["cost_usd"] == 0.001
     assert result.metadata["session_id"] == "test-session-123"
@@ -679,7 +679,7 @@ def test_extract_usage_full(mock_cli_path):
     }
 
     assert api._extract_usage(data) == {
-        "input": 100,
+        "input": 115,  # inclusive of cache tokens (export pipeline prices input + output)
         "output": 50,
         "cache_creation": 10,
         "cache_read": 5,
