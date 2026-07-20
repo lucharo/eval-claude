@@ -132,6 +132,24 @@
         .control-group { display: flex; align-items: center; gap: 0.4rem; }
         .control-group .label { color: #8b949e; margin-right: 0.25rem; }
         #filter-bar { display: none; }
+        #transition-legend {
+            list-style: none;
+            margin: 0.6rem 0 0;
+            padding: 0;
+            font-size: 0.75rem;
+            color: #8b949e;
+        }
+        #transition-legend li {
+            display: flex;
+            align-items: baseline;
+            gap: 0.45rem;
+            margin-top: 0.2rem;
+        }
+        #transition-legend .swatch {
+            flex: 0 0 auto;
+            width: 0.75rem;
+            border-top: 2px dashed currentColor;
+        }
         #filter-summary strong { color: #c9d1d9; font-weight: 600; }
         .data-notice {
             background: #1f1a0d;
@@ -203,6 +221,9 @@ uvx --from eval-claude inspect eval inspect_evals/gpqa_diamond \
     <div class="chart-container">
         <h2>Accuracy</h2>
         <canvas id="chart"></canvas>
+        <!-- Non-hover fallback for the in-canvas transition annotations,
+             which are otherwise unreachable on touch/keyboard. -->
+        <ul id="transition-legend"></ul>
     </div>
 
     <div class="chart-container">
@@ -245,6 +266,24 @@ uvx --from eval-claude inspect eval inspect_evals/gpqa_diamond \
             { date: '2026-04-09T06:38:00Z', label: 'Opus 4.6 output recovered', color: '#a855f7' },
         ];
 
+        // Mirror the transition annotations into visible DOM so their text is
+        // available without hovering the canvas (touch + keyboard users).
+        (function renderTransitionLegend() {
+            const list = document.getElementById('transition-legend');
+            if (!list) return;
+            TRANSITIONS.forEach(t => {
+                const li = document.createElement('li');
+                const swatch = document.createElement('span');
+                swatch.className = 'swatch';
+                swatch.style.color = t.color;
+                const text = document.createElement('span');
+                text.textContent = `${t.date.slice(0, 10)} — ${t.label}`;
+                li.appendChild(swatch);
+                li.appendChild(text);
+                list.appendChild(li);
+            });
+        })();
+
         // Colorblind-safe palette (Okabe-Ito) with family grouping preserved
         // via lightness pairs: Sonnets share the blue family (4.5 lighter,
         // 4.6 darker), Opuses share the warm family (4.5 orange, 4.6
@@ -255,6 +294,13 @@ uvx --from eval-claude inspect eval inspect_evals/gpqa_diamond \
             'Sonnet 4.6': '#0072B2',
             'Opus 4.5':   '#E69F00',
             'Opus 4.6':   '#D55E00',
+        };
+        // Darker in-family hues for future versions not listed above, so a
+        // new model still reads as part of its family.
+        const FAMILY_FALLBACK_COLORS = {
+            haiku:  '#00785A',
+            sonnet: '#004E7C',
+            opus:   '#A34400',
         };
         const FALLBACK_COLORS = ['#CC79A7', '#F0E442', '#999999', '#000000'];
         let fallbackIdx = 0;
@@ -280,7 +326,10 @@ uvx --from eval-claude inspect eval inspect_evals/gpqa_diamond \
 
         function getStyle(label) {
             if (assignedColors[label]) return assignedColors[label];
+            // Explicit overrides first; unknown versions of a known family
+            // (e.g. a future "Sonnet 4.7") still inherit that family's hue.
             const color = MODEL_COLORS[label]
+                || FAMILY_FALLBACK_COLORS[getFamily(label)]
                 || FALLBACK_COLORS[fallbackIdx++ % FALLBACK_COLORS.length];
             assignedColors[label] = { color };
             return assignedColors[label];
@@ -493,7 +542,9 @@ uvx --from eval-claude inspect eval inspect_evals/gpqa_diamond \
                     }));
                     return;
                 }
-                const winMs = smoothingDays * 24 * 3600 * 1000;
+                // Inclusive trailing window: an N-day average spans the current
+                // point plus the preceding N-1 days, not N full days back.
+                const winMs = (smoothingDays - 1) * 24 * 3600 * 1000;
                 ds.data = raw.map(d => {
                     const cutoff = d.t - winMs;
                     const window = raw.filter(r => r.t >= cutoff && r.t <= d.t);
@@ -519,7 +570,9 @@ uvx --from eval-claude inspect eval inspect_evals/gpqa_diamond \
                         }
                         chart.setDatasetVisibility(idx, visible);
                     });
-                    chart.update('none');
+                    // The accuracy chart (allCharts[0]) is updated by
+                    // updateCIBands() below — skip it to avoid a double render.
+                    if (chart !== allCharts[0]) chart.update('none');
                 }
                 updateCIBands();
                 updateFilterBar();
@@ -533,8 +586,15 @@ uvx --from eval-claude inspect eval inspect_evals/gpqa_diamond \
                 }
                 bar.style.display = 'flex';
                 const ordered = orderedLabels.filter(l => selectedModels.has(l));
-                document.getElementById('filter-summary').innerHTML =
-                    `Showing <strong>${ordered.join(', ')}</strong> &middot; click another model to add it, click again to remove`;
+                // Build with DOM nodes so unknown model ids from data.json
+                // cannot inject markup.
+                const summary = document.getElementById('filter-summary');
+                summary.textContent = 'Showing ';
+                const strong = document.createElement('strong');
+                strong.textContent = ordered.join(', ');
+                summary.appendChild(strong);
+                summary.appendChild(document.createTextNode(
+                    ' · click another model to add it, click again to remove'));
             }
 
             function setSmoothing(days) {
