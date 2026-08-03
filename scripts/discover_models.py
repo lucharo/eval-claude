@@ -8,7 +8,8 @@ Usage:
     uv run python scripts/discover_models.py --update
 
 Requires ANTHROPIC_API_KEY environment variable.
-Falls back to CLAUDE_CODE_OAUTH_TOKEN if available.
+Models are removed only when listed in retired-models.json because the API-key
+catalogue can differ from the Claude Code OAuth catalogue used by benchmarks.
 """
 
 import json
@@ -20,6 +21,7 @@ import urllib.request
 from pathlib import Path
 
 MODELS_FILE = Path(__file__).parent.parent / "models.json"
+RETIRED_MODELS_FILE = Path(__file__).parent.parent / "retired-models.json"
 API_BASE = "https://api.anthropic.com/v1/models"
 
 # Only benchmark these model families
@@ -67,6 +69,12 @@ def load_current() -> list[str]:
         return json.load(f)
 
 
+def load_retired() -> list[str]:
+    """Load explicitly retired models confirmed unavailable to Claude Code."""
+    with open(RETIRED_MODELS_FILE) as f:
+        return json.load(f)
+
+
 def write_github_output(key: str, value: str) -> None:
     """Write a newline-safe value to $GITHUB_OUTPUT if running in CI."""
     output_file = os.environ.get("GITHUB_OUTPUT")
@@ -83,21 +91,28 @@ def main():
 
     current = set(load_current())
     available = set(fetch_models())
+    retired = set(load_retired())
 
-    new_models = sorted(available - current)
-    removed = sorted(current - available)
+    new_models = sorted(available - current - retired)
+    removed = sorted(current & retired)
+    api_key_hidden = sorted(current - available - retired)
 
     if new_models:
         print(f"New models found: {', '.join(new_models)}")
     if removed:
-        print(f"Models no longer available: {', '.join(removed)}")
+        print(f"Explicitly retired models: {', '.join(removed)}")
+    if api_key_hidden:
+        print(
+            "Models absent from the API-key catalogue but retained for the "
+            f"Claude Code OAuth benchmark: {', '.join(api_key_hidden)}"
+        )
     if not new_models and not removed:
         print("No changes — all models up to date")
         write_github_output("has_changes", "false")
         return
 
     if update:
-        updated = sorted(available)
+        updated = sorted((current | set(new_models)) - retired)
         with open(MODELS_FILE, "w") as f:
             json.dump(updated, f, indent=2)
             f.write("\n")
