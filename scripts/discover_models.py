@@ -1,10 +1,10 @@
-"""Check for new Claude models via the Anthropic API and update models.json.
+"""Sync available Claude models from the Anthropic API into models.json.
 
 Usage:
-    # Check what's new (dry run)
+    # Check what changed (dry run)
     uv run python scripts/discover_models.py
 
-    # Update models.json with new models
+    # Update models.json with the currently available models
     uv run python scripts/discover_models.py --update
 
 Requires ANTHROPIC_API_KEY environment variable.
@@ -90,26 +90,24 @@ def main():
     if new_models:
         print(f"New models found: {', '.join(new_models)}")
     if removed:
-        print(
-            "Models no longer available (retained for historical runs): "
-            f"{', '.join(removed)}"
-        )
+        print(f"Models no longer available: {', '.join(removed)}")
     if not new_models and not removed:
         print("No changes — all models up to date")
-        write_github_output("has_new", "false")
+        write_github_output("has_changes", "false")
         return
 
-    if update and new_models:
-        updated = sorted(current | set(new_models))
+    if update:
+        updated = sorted(available)
         with open(MODELS_FILE, "w") as f:
             json.dump(updated, f, indent=2)
             f.write("\n")
-        print(f"Updated {MODELS_FILE} with {len(new_models)} new model(s)")
-        write_github_output("has_new", "true")
+        print(f"Updated {MODELS_FILE}: {len(new_models)} added, {len(removed)} removed")
+        write_github_output("has_changes", "true")
         write_github_output("new_models", json.dumps(new_models))
-    elif new_models:
-        print("Run with --update to add them to models.json")
-        write_github_output("has_new", "false")
+        write_github_output("removed_models", json.dumps(removed))
+    else:
+        print("Run with --update to sync models.json")
+        write_github_output("has_changes", "false")
 
 
 if __name__ == "__main__":
