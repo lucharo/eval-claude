@@ -18,13 +18,26 @@ DATA_FILE = Path(__file__).parent.parent / "docs" / "data.json"
 
 def get_label(model: str) -> str:
     """Canonical label from model ID: 'claude-code/claude-sonnet-4-6' -> 'Sonnet 4.6'."""
-    id = model.replace("claude-code/", "").replace("claude-", "")
-    m = re.match(r"^(haiku|sonnet|opus)-(\d+)-(\d+)(?:-\d+)?$", id)
+    model_id = model.replace("claude-code/", "").replace("claude-", "")
+    m = re.match(r"^(haiku|sonnet|opus)-(\d+)-(\d+)(?:-\d+)?$", model_id)
     if m:
         return f"{m.group(1).title()} {m.group(2)}.{m.group(3)}"
-    if id in ("haiku", "sonnet", "opus"):
-        return id.title()
-    return id
+    if model_id in ("haiku", "sonnet", "opus"):
+        return model_id.title()
+    return model_id
+
+
+def historical_lower_bound(accuracies: list[float]) -> tuple[float, float]:
+    """Return the historical mean and its 95% lower prediction bound."""
+    if len(accuracies) < 2:
+        raise ValueError("at least two historical accuracies are required")
+
+    mean_accuracy = sum(accuracies) / len(accuracies)
+    variance = sum((accuracy - mean_accuracy) ** 2 for accuracy in accuracies) / (
+        len(accuracies) - 1
+    )
+    standard_deviation = variance**0.5
+    return mean_accuracy, mean_accuracy - 1.96 * standard_deviation
 
 
 def merge(results_dir: str) -> None:
@@ -76,19 +89,16 @@ def merge(results_dir: str) -> None:
             continue
 
         accs = [p["accuracy"] for p in prev]
-        mean_acc = sum(accs) / len(accs)
-        # Use standard deviation of historical accuracies (not averaged stderr)
-        variance = sum((a - mean_acc) ** 2 for a in accs) / len(accs)
-        sd = variance ** 0.5
-
-        lower_bound = mean_acc - 1.96 * sd
-        drop_pct = (mean_acc - result["accuracy"]) / mean_acc * 100 if mean_acc > 0 else 0
+        mean_acc, lower_bound = historical_lower_bound(accs)
+        drop_pct = (
+            (mean_acc - result["accuracy"]) / mean_acc * 100 if mean_acc > 0 else 0
+        )
 
         if result["accuracy"] < lower_bound:
             print(
                 f"::warning::{label} may be nerfed: "
-                f"{result['accuracy']*100:.1f}% vs historical {mean_acc*100:.1f}% "
-                f"(drop of {drop_pct:.1f}%, below 95% CI lower bound {lower_bound*100:.1f}%)"
+                f"{result['accuracy'] * 100:.1f}% vs historical {mean_acc * 100:.1f}% "
+                f"(drop of {drop_pct:.1f}%, below 95% CI lower bound {lower_bound * 100:.1f}%)"
             )
 
 

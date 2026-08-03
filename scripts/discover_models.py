@@ -15,6 +15,7 @@ import json
 import os
 import re
 import sys
+import urllib.parse
 import urllib.request
 from pathlib import Path
 
@@ -22,7 +23,7 @@ MODELS_FILE = Path(__file__).parent.parent / "models.json"
 API_BASE = "https://api.anthropic.com/v1/models"
 
 # Only benchmark these model families
-FAMILY_PATTERN = re.compile(r"^claude-(haiku|sonnet|opus)-\d")
+FAMILY_PATTERN = re.compile(r"^claude-(haiku|sonnet|opus)-[a-z0-9-]+$")
 
 
 def fetch_models() -> list[str]:
@@ -33,7 +34,7 @@ def fetch_models() -> list[str]:
         sys.exit(1)
 
     all_models: list[str] = []
-    url = f"{API_BASE}?limit=100"
+    url = f"{API_BASE}?{urllib.parse.urlencode({'limit': 100})}"
 
     while url:
         req = urllib.request.Request(
@@ -47,12 +48,13 @@ def fetch_models() -> list[str]:
             data = json.loads(resp.read())
 
         for m in data.get("data", []):
-            if FAMILY_PATTERN.match(m["id"]):
+            if FAMILY_PATTERN.fullmatch(m["id"]):
                 all_models.append(m["id"])
 
         # Handle pagination
         if data.get("has_more") and data.get("last_id"):
-            url = f"{API_BASE}?limit=100&after_id={data['last_id']}"
+            query = urllib.parse.urlencode({"limit": 100, "after_id": data["last_id"]})
+            url = f"{API_BASE}?{query}"
         else:
             url = None
 
@@ -66,11 +68,14 @@ def load_current() -> list[str]:
 
 
 def write_github_output(key: str, value: str) -> None:
-    """Write a key=value pair to $GITHUB_OUTPUT if running in CI."""
+    """Write a newline-safe value to $GITHUB_OUTPUT if running in CI."""
     output_file = os.environ.get("GITHUB_OUTPUT")
     if output_file:
+        delimiter = "eval_claude_output"
+        if delimiter in value:
+            raise ValueError("GitHub output value contains the output delimiter")
         with open(output_file, "a") as f:
-            f.write(f"{key}={value}\n")
+            f.write(f"{key}<<{delimiter}\n{value}\n{delimiter}\n")
 
 
 def main():
@@ -85,7 +90,10 @@ def main():
     if new_models:
         print(f"New models found: {', '.join(new_models)}")
     if removed:
-        print(f"Models no longer available: {', '.join(removed)}")
+        print(
+            "Models no longer available (retained for historical runs): "
+            f"{', '.join(removed)}"
+        )
     if not new_models and not removed:
         print("No changes — all models up to date")
         write_github_output("has_new", "false")

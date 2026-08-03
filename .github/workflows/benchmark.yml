@@ -19,7 +19,9 @@ jobs:
       - uses: actions/checkout@v4
       - name: Read models from config
         id: read
-        run: echo "models=$(jq -c . models.json)" >> "$GITHUB_OUTPUT"
+        run: |
+          jq -e 'type == "array" and all(.[]; type == "string")' models.json > /dev/null
+          echo "models=$(jq -c . models.json)" >> "$GITHUB_OUTPUT"
 
   eval:
     needs: matrix
@@ -48,24 +50,18 @@ jobs:
         run: |
           mkdir -p ~/.claude
           echo '{"hasCompletedOnboarding":true}' > ~/.claude.json
-          EXPIRES_AT=$(($(date +%s) * 1000 + 31536000000))
           uv run python -c "
-          import json, os
+          import json, os, time
+          path = os.path.expanduser('~/.claude/.credentials.json')
           creds = {'claudeAiOauth': {
               'accessToken': os.environ['CLAUDE_CODE_OAUTH_TOKEN'],
-              'expiresAt': ${EXPIRES_AT},
+              'expiresAt': int(time.time() * 1000) + 31536000000,
               'scopes': ['user:inference']
           }}
-          with open(os.path.expanduser('~/.claude/.credentials.json'), 'w') as f:
+          with open(path, 'w') as f:
               json.dump(creds, f)
+          os.chmod(path, 0o600)
           "
-
-      - name: Verify Claude Code auth
-        env:
-          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
-        run: |
-          echo "Testing CLI auth..."
-          claude -p "Reply with just the word 'hello'" --output-format json --dangerously-skip-permissions 2>&1 || true
 
       - name: Install dependencies
         run: uv sync
@@ -73,9 +69,10 @@ jobs:
       - name: Run GPQA Diamond eval
         env:
           CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          MODEL: ${{ matrix.model }}
         run: |
           uv run inspect eval inspect_evals/gpqa_diamond \
-            --model claude-code/${{ matrix.model }} \
+            --model "claude-code/${MODEL}" \
             --limit 50 \
             -T epochs=1 \
             -M max_connections=10 \

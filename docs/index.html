@@ -4,12 +4,12 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Did They Nerf Claude?</title>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
-    <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3"></script>
-    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-annotation@3"></script>
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/prismjs@1/themes/prism-tomorrow.min.css">
-    <script src="https://cdn.jsdelivr.net/npm/prismjs@1/prism.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/prismjs@1/components/prism-bash.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.9/dist/chart.umd.min.js" integrity="sha384-b0GXujLkk9eYYSmcSfoyZbfyElGAQnDyY0skCHSG6w3JgTMFnz11ggrTAr7seu9f" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3.0.0/dist/chartjs-adapter-date-fns.bundle.min.js" integrity="sha384-cVMg8E3QFwTvGCDuK+ET4PD341jF3W8nO1auiXfuZNQkzbUUiBGLsIQUE+b1mxws" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-annotation@3.1.0/dist/chartjs-plugin-annotation.min.js" integrity="sha384-3N9GHhCtN3CQef6tNfqgZlv7sQLYIkcChN+uaTZ7xVdzKYp/SjBNPxa92+hM7EAY" crossorigin="anonymous"></script>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/themes/prism-tomorrow.min.css" integrity="sha384-wFjoQjtV1y5jVHbt0p35Ui8aV8GVpEZkyF99OXWqP/eNJDU93D3Ugxkoyh6Y2I4A" crossorigin="anonymous">
+    <script src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/prism.min.js" integrity="sha384-BGaNxfftg+9+TtC098wxawPFVEUpKYvaiCgbB0iqAMjK/4jDdmUY+oGxrPNvnXEf" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/components/prism-bash.min.js" integrity="sha384-9WmlN8ABpoFSSHvBGGjhvB3E/D8UkNB9HpLJjBQFC2VSQsM1odiQDv4NbEo+7l15" crossorigin="anonymous"></script>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
@@ -175,8 +175,6 @@
     <details class="try-it">
         <summary>Run it yourself with your Claude subscription</summary>
         <pre><code class="language-bash"># Requires: Claude Code CLI (npm i -g @anthropic-ai/claude-code)
-uv pip install eval-claude
-
 # Run 50 GPQA Diamond questions with Sonnet
 uvx --from eval-claude inspect eval inspect_evals/gpqa_diamond \
   --model claude-code/claude-sonnet-4-6 \
@@ -293,7 +291,7 @@ uvx --from eval-claude inspect eval inspect_evals/gpqa_diamond \
         }
 
         function formatTokens(n) {
-            if (!n) return '\u2014';
+            if (n == null) return '\u2014';
             if (n >= 1e6) return (n / 1e6).toFixed(1) + 'M';
             if (n >= 1e3) return (n / 1e3).toFixed(0) + 'K';
             return n.toString();
@@ -320,51 +318,49 @@ uvx --from eval-claude inspect eval inspect_evals/gpqa_diamond \
         async function fetchPricing() {
             try {
                 const resp = await fetch('https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json');
+                if (!resp.ok) throw new Error(`pricing request failed: ${resp.status}`);
                 const allPricing = await resp.json();
-
-                // Extract pricing for our model families, preferring highest version
                 const pricing = {};
                 const targets = {
-                    'haiku': /^claude-(\d+(?:\.\d+)?)-haiku|^claude-haiku-(\d+)-(\d+)/,
-                    'sonnet': /^claude-(\d+(?:\.\d+)?)-sonnet|^claude-sonnet-(\d+)-(\d+)/,
-                    'opus': /^claude-(\d+(?:\.\d+)?)-opus|^claude-opus-(\d+)-(\d+)/,
+                    'Haiku 4.5': 'claude-haiku-4-5',
+                    'Sonnet 4.5': 'claude-sonnet-4-5',
+                    'Opus 4.5': 'claude-opus-4-5',
+                    'Sonnet 4.6': 'claude-sonnet-4-6',
+                    'Opus 4.6': 'claude-opus-4-6',
                 };
-                for (const [family, pattern] of Object.entries(targets)) {
-                    let bestVersion = -1;
-                    for (const [model, info] of Object.entries(allPricing)) {
-                        const m = model.match(pattern);
-                        if (m && info.input_cost_per_token) {
-                            // Extract version as comparable number (e.g. "4.5" -> 4.5, "4"+"6" -> 4.6)
-                            const ver = m[1] ? parseFloat(m[1]) : parseFloat(`${m[2]}.${m[3]}`);
-                            if (ver > bestVersion) {
-                                bestVersion = ver;
-                                pricing[family] = {
-                                    input: info.input_cost_per_token * 1e6,
-                                    output: info.output_cost_per_token * 1e6,
-                                };
-                            }
-                        }
+                for (const [label, model] of Object.entries(targets)) {
+                    const info = allPricing[model];
+                    if (info?.input_cost_per_token && info?.output_cost_per_token) {
+                        pricing[label] = {
+                            input: info.input_cost_per_token * 1e6,
+                            output: info.output_cost_per_token * 1e6,
+                        };
                     }
                 }
-                return { ...FALLBACK_PRICING, ...pricing };
+                return pricing;
             } catch {
-                return FALLBACK_PRICING;
+                document.querySelector('.pricing-note').append(
+                    ' Live pricing is unavailable; built-in family defaults are shown.'
+                );
+                return {};
             }
         }
 
         function estimateCost(point, pricing) {
-            const family = getFamily(getLabel(point.model));
-            if (!family || !pricing[family]) return null;
-            const p = pricing[family];
-            const inputTokens = point.input_tokens || 0;
-            const outputTokens = point.output_tokens || 0;
+            const label = getLabel(point.model);
+            const family = getFamily(label);
+            const p = pricing[label] || FALLBACK_PRICING[family];
+            if (!p) return null;
             // Need at least input/output breakdown for a meaningful estimate
+            if (point.input_tokens == null || point.output_tokens == null) return null;
+            const inputTokens = point.input_tokens;
+            const outputTokens = point.output_tokens;
             if (!inputTokens && !outputTokens) return null;
             return (inputTokens * p.input + outputTokens * p.output) / 1e6;
         }
 
         function escapeHtml(str) {
-            return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+            return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
         }
 
         // Shared chart theme
@@ -411,7 +407,10 @@ uvx --from eval-claude inspect eval inspect_evals/gpqa_diamond \
             for (const label of orderedLabels) {
                 const accs = byLabel[label].map(p => p.accuracy);
                 const mean = accs.reduce((a, b) => a + b, 0) / accs.length;
-                const sd = Math.sqrt(accs.reduce((s, a) => s + (a - mean) ** 2, 0) / accs.length);
+                const variance = accs.length < 2
+                    ? 0
+                    : accs.reduce((s, a) => s + (a - mean) ** 2, 0) / (accs.length - 1);
+                const sd = Math.sqrt(variance);
                 const cutoff = mean - 1.96 * sd;
                 nerfFlags[label] = byLabel[label].map(p => ({
                     flagged: p.accuracy < cutoff,
@@ -779,7 +778,7 @@ uvx --from eval-claude inspect eval inspect_evals/gpqa_diamond \
                 const accs = points.map(p => p.accuracy);
                 const mean = accs.reduce((a, b) => a + b, 0) / accs.length;
                 // Use standard deviation of historical accuracies (not averaged stderr)
-                const variance = accs.reduce((sum, a) => sum + (a - mean) ** 2, 0) / accs.length;
+                const variance = accs.reduce((sum, a) => sum + (a - mean) ** 2, 0) / (accs.length - 1);
                 const sd = Math.sqrt(variance);
                 const lowerBound = mean - 1.96 * sd;
                 if (latestResult.accuracy < lowerBound) {
@@ -798,9 +797,12 @@ uvx --from eval-claude inspect eval inspect_evals/gpqa_diamond \
                     ? `<span class="status-nerfed" title="${escapeHtml(nerf.detail)}">Nerfed</span>`
                     : `<span class="status-ok">OK</span>`;
                 const cost = estimateCost(r, pricing);
+                const confidenceInterval = r.stderr == null
+                    ? ''
+                    : ` <span style="color:#8b949e;font-weight:400;font-size:0.8rem">\u00B1 ${(1.96 * r.stderr * 100).toFixed(1)}%</span>`;
                 tbody.innerHTML += `<tr>
                     <td><span class="model-badge" style="background:${style.color}22;color:${style.color}">${escapeHtml(r._label)}</span></td>
-                    <td class="accuracy">${(r.accuracy * 100).toFixed(1)}% <span style="color:#8b949e;font-weight:400;font-size:0.8rem">\u00B1 ${(1.96 * r.stderr * 100).toFixed(1)}%</span></td>
+                    <td class="accuracy">${(r.accuracy * 100).toFixed(1)}%${confidenceInterval}</td>
                     <td>${statusHtml}</td>
                     <td>${formatTokens(r.total_tokens)}</td>
                     <td class="cost">${formatCost(cost)}</td>
