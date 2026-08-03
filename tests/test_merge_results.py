@@ -3,7 +3,7 @@ import pytest
 from scripts.merge_results import historical_lower_bound
 
 
-def test_historical_lower_bound_uses_sample_standard_deviation():
+def test_historical_lower_bound_uses_variability_heuristic():
     mean, lower_bound = historical_lower_bound([0.7, 0.9])
 
     assert mean == pytest.approx(0.8)

@@ -402,7 +402,7 @@ uvx --from eval-claude inspect eval inspect_evals/gpqa_diamond \
             const orderedLabels = MODEL_ORDER.filter(l => byLabel[l])
                 .concat(Object.keys(byLabel).filter(l => !MODEL_ORDER.includes(l)));
 
-            // --- Per-model nerf flags (>1.96 SD below the per-model mean) ---
+            // --- Per-model heuristic flags (>1.96 sample SD below the mean) ---
             const nerfFlags = {};
             for (const label of orderedLabels) {
                 const accs = byLabel[label].map(p => p.accuracy);
@@ -773,7 +773,9 @@ uvx --from eval-claude inspect eval inspect_evals/gpqa_diamond \
             }
 
             function getNerfStatus(label, latestResult, allPoints) {
-                const points = allPoints.filter(p => p !== latestResult);
+                const points = allPoints.filter(p => !(
+                    p.model === latestResult.model && p.date === latestResult.date
+                ));
                 if (points.length < 2) return { status: 'ok', detail: '' };
                 const accs = points.map(p => p.accuracy);
                 const mean = accs.reduce((a, b) => a + b, 0) / accs.length;
@@ -783,7 +785,7 @@ uvx --from eval-claude inspect eval inspect_evals/gpqa_diamond \
                 const lowerBound = mean - 1.96 * sd;
                 if (latestResult.accuracy < lowerBound) {
                     const drop = ((mean - latestResult.accuracy) / mean * 100).toFixed(1);
-                    return { status: 'nerfed', detail: `${drop}% decline vs historical ${(mean * 100).toFixed(1)}%` };
+                    return { status: 'nerfed', detail: `${drop}% decline vs historical ${(mean * 100).toFixed(1)}% (variability heuristic)` };
                 }
                 return { status: 'ok', detail: '' };
             }

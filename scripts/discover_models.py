@@ -23,7 +23,7 @@ MODELS_FILE = Path(__file__).parent.parent / "models.json"
 API_BASE = "https://api.anthropic.com/v1/models"
 
 # Only benchmark these model families
-FAMILY_PATTERN = re.compile(r"^claude-(haiku|sonnet|opus)-[a-z0-9-]+$")
+FAMILY_PATTERN = re.compile(r"^claude-(haiku|sonnet|opus)-\d[a-z0-9-]*$")
 
 
 def fetch_models() -> list[str]:

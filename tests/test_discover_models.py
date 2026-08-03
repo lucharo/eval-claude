@@ -4,6 +4,12 @@ import sys
 from scripts import discover_models
 
 
+def test_family_pattern_requires_versioned_model_id():
+    assert discover_models.FAMILY_PATTERN.fullmatch("claude-sonnet-4-6")
+    assert not discover_models.FAMILY_PATTERN.fullmatch("claude-sonnet-latest")
+    assert not discover_models.FAMILY_PATTERN.fullmatch("claude-opus--")
+
+
 def test_update_removes_unavailable_models(tmp_path, monkeypatch):
     models_file = tmp_path / "models.json"
     models_file.write_text(json.dumps(["claude-current", "claude-retired"]))

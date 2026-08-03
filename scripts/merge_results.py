@@ -5,7 +5,7 @@ Usage:
 
 Reads result JSON files from the given directory (glob: */result.json),
 appends them to docs/data.json, and prints GitHub Actions warnings if
-any model's latest accuracy falls below its historical 95% CI.
+any model's latest accuracy falls below a historical variability heuristic.
 """
 
 import json
@@ -28,7 +28,7 @@ def get_label(model: str) -> str:
 
 
 def historical_lower_bound(accuracies: list[float]) -> tuple[float, float]:
-    """Return the historical mean and its 95% lower prediction bound."""
+    """Return the mean and a heuristic threshold 1.96 sample SD below it."""
     if len(accuracies) < 2:
         raise ValueError("at least two historical accuracies are required")
 
@@ -98,7 +98,8 @@ def merge(results_dir: str) -> None:
             print(
                 f"::warning::{label} may be nerfed: "
                 f"{result['accuracy'] * 100:.1f}% vs historical {mean_acc * 100:.1f}% "
-                f"(drop of {drop_pct:.1f}%, below 95% CI lower bound {lower_bound * 100:.1f}%)"
+                f"(drop of {drop_pct:.1f}%, below historical variability "
+                f"threshold {lower_bound * 100:.1f}%)"
             )
 
 
