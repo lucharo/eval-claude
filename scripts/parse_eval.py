@@ -42,10 +42,12 @@ def parse_log(log_path: str) -> dict:
     if completed == 0:
         print("SKIP: 0 completed samples", file=sys.stderr)
         sys.exit(2)
-    total = log.results.total_samples or completed
-    if completed != total:
+    expected_samples = 50
+    total = log.results.total_samples
+    if completed != expected_samples or total != expected_samples:
         print(
-            f"SKIP: only {completed} of {total} samples completed",
+            f"SKIP: expected {expected_samples}/{expected_samples} completed samples, "
+            f"got {completed}/{total}",
             file=sys.stderr,
         )
         sys.exit(2)

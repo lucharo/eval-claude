@@ -13,8 +13,8 @@ def make_log(accuracy=0.0, samples=None):
         status="success",
         results=SimpleNamespace(
             scores=[score],
-            completed_samples=10,
-            total_samples=10,
+            completed_samples=50,
+            total_samples=50,
         ),
         samples=samples or [],
         stats=SimpleNamespace(
@@ -23,8 +23,8 @@ def make_log(accuracy=0.0, samples=None):
             model_usage={
                 "claude": SimpleNamespace(
                     input_tokens=1000,
-                    output_tokens=10000,
-                    total_tokens=11000,
+                    output_tokens=50000,
+                    total_tokens=51000,
                 )
             },
         ),
@@ -66,11 +66,36 @@ def test_parse_log_rejects_explicit_sample_invalidation(monkeypatch, capsys):
 
 def test_parse_log_rejects_incomplete_run(monkeypatch, capsys):
     log = make_log()
-    log.results.completed_samples = 9
+    log.results.completed_samples = 49
     monkeypatch.setattr(parse_eval, "read_eval_log", lambda _: log)
 
     with pytest.raises(SystemExit) as exc:
         parse_eval.parse_log("result.eval")
 
     assert exc.value.code == 2
-    assert "9 of 10 samples completed" in capsys.readouterr().err
+    assert "got 49/50" in capsys.readouterr().err
+
+
+def test_parse_log_rejects_missing_total(monkeypatch, capsys):
+    log = make_log()
+    log.results.total_samples = None
+    monkeypatch.setattr(parse_eval, "read_eval_log", lambda _: log)
+
+    with pytest.raises(SystemExit) as exc:
+        parse_eval.parse_log("result.eval")
+
+    assert exc.value.code == 2
+    assert "got 50/None" in capsys.readouterr().err
+
+
+def test_parse_log_rejects_complete_nonstandard_run(monkeypatch, capsys):
+    log = make_log()
+    log.results.completed_samples = 10
+    log.results.total_samples = 10
+    monkeypatch.setattr(parse_eval, "read_eval_log", lambda _: log)
+
+    with pytest.raises(SystemExit) as exc:
+        parse_eval.parse_log("result.eval")
+
+    assert exc.value.code == 2
+    assert "got 10/10" in capsys.readouterr().err
