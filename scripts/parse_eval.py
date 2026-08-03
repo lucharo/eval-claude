@@ -6,6 +6,7 @@ CI should check the exit code and skip publishing on failure.
 
 import json
 import sys
+from datetime import datetime
 from pathlib import Path
 
 from inspect_ai.log import read_eval_log
@@ -41,17 +42,35 @@ def parse_log(log_path: str) -> dict:
     if completed == 0:
         print("SKIP: 0 completed samples", file=sys.stderr)
         sys.exit(2)
+    expected_samples = 50
+    total = log.results.total_samples
+    if completed != expected_samples or total != expected_samples:
+        print(
+            f"SKIP: expected {expected_samples}/{expected_samples} completed samples, "
+            f"got {completed}/{total}",
+            file=sys.stderr,
+        )
+        sys.exit(2)
 
-    # Sanity check: if accuracy is 0% with many samples, likely an auth/limit failure
-    if accuracy == 0.0 and completed >= 10:
-        print(f"SKIP: 0% accuracy on {completed} samples — likely auth or rate limit failure", file=sys.stderr)
+    failed_samples = [
+        sample
+        for sample in (log.samples or [])
+        if sample.error is not None or sample.invalidation is not None
+    ]
+    if failed_samples:
+        print(
+            f"SKIP: {len(failed_samples)} sample(s) contain explicit errors or "
+            "invalidation signals",
+            file=sys.stderr,
+        )
         sys.exit(2)
 
     # Extract timing
     started = log.stats.started_at
     completed_at = log.stats.completed_at
-
-    from datetime import datetime
+    if not started or not completed_at:
+        print("SKIP: eval log is missing start or completion time", file=sys.stderr)
+        sys.exit(2)
 
     start_dt = datetime.fromisoformat(started)
     end_dt = datetime.fromisoformat(completed_at)
