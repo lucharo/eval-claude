@@ -314,30 +314,13 @@ uvx --from eval-claude inspect eval inspect_evals/gpqa_diamond \
             'sonnet': { input: 3,  output: 15 },
             'opus':   { input: 5, output: 25 },
         };
+        const fallbackPricingModels = new Set();
 
         async function fetchPricing() {
             try {
                 const resp = await fetch('https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json');
                 if (!resp.ok) throw new Error(`pricing request failed: ${resp.status}`);
-                const allPricing = await resp.json();
-                const pricing = {};
-                const targets = {
-                    'Haiku 4.5': 'claude-haiku-4-5',
-                    'Sonnet 4.5': 'claude-sonnet-4-5',
-                    'Opus 4.5': 'claude-opus-4-5',
-                    'Sonnet 4.6': 'claude-sonnet-4-6',
-                    'Opus 4.6': 'claude-opus-4-6',
-                };
-                for (const [label, model] of Object.entries(targets)) {
-                    const info = allPricing[model];
-                    if (info?.input_cost_per_token && info?.output_cost_per_token) {
-                        pricing[label] = {
-                            input: info.input_cost_per_token * 1e6,
-                            output: info.output_cost_per_token * 1e6,
-                        };
-                    }
-                }
-                return pricing;
+                return await resp.json();
             } catch {
                 document.querySelector('.pricing-note').append(
                     ' Live pricing is unavailable; built-in family defaults are shown.'
@@ -349,7 +332,27 @@ uvx --from eval-claude inspect eval inspect_evals/gpqa_diamond \
         function estimateCost(point, pricing) {
             const label = getLabel(point.model);
             const family = getFamily(label);
-            const p = pricing[label] || FALLBACK_PRICING[family];
+            const modelId = point.model.replace(/^claude-code\//, '');
+            const live = pricing[modelId];
+            let p = null;
+            if (live?.input_cost_per_token && live?.output_cost_per_token) {
+                p = {
+                    input: live.input_cost_per_token * 1e6,
+                    output: live.output_cost_per_token * 1e6,
+                };
+            } else {
+                p = FALLBACK_PRICING[family];
+                if (p && !fallbackPricingModels.has(modelId)) {
+                    fallbackPricingModels.add(modelId);
+                    let note = document.getElementById('pricing-fallback-note');
+                    if (!note) {
+                        note = document.createElement('span');
+                        note.id = 'pricing-fallback-note';
+                        document.querySelector('.pricing-note').append(note);
+                    }
+                    note.textContent = ` Family fallback used for: ${[...fallbackPricingModels].join(', ')}.`;
+                }
+            }
             if (!p) return null;
             // Need at least input/output breakdown for a meaningful estimate
             if (point.input_tokens == null || point.output_tokens == null) return null;
