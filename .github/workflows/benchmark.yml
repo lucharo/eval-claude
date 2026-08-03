@@ -20,7 +20,7 @@ jobs:
       - name: Read models from config
         id: read
         run: |
-          jq -e 'type == "array" and all(.[]; type == "string")' models.json > /dev/null
+          jq -e 'type == "array" and length > 0 and all(.[]; type == "string")' models.json > /dev/null
           echo "models=$(jq -c . models.json)" >> "$GITHUB_OUTPUT"
 
   eval:

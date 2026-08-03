@@ -43,6 +43,16 @@ def parse_log(log_path: str) -> dict:
         print("SKIP: 0 completed samples", file=sys.stderr)
         sys.exit(2)
 
+    # A sizeable all-wrong run is much more likely to indicate a broken
+    # scorer or authentication response than a genuine benchmark result.
+    if accuracy == 0.0 and completed >= 10:
+        print(
+            f"SKIP: 0% accuracy on {completed} samples — likely scorer, auth, "
+            "or rate limit failure",
+            file=sys.stderr,
+        )
+        sys.exit(2)
+
     # Extract timing
     started = log.stats.started_at
     completed_at = log.stats.completed_at
