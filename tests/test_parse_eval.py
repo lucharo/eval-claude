@@ -11,7 +11,11 @@ def make_log(accuracy=0.0, samples=None):
     )
     return SimpleNamespace(
         status="success",
-        results=SimpleNamespace(scores=[score], completed_samples=10),
+        results=SimpleNamespace(
+            scores=[score],
+            completed_samples=10,
+            total_samples=10,
+        ),
         samples=samples or [],
         stats=SimpleNamespace(
             started_at="2026-08-03T10:00:00+00:00",
@@ -46,3 +50,27 @@ def test_parse_log_rejects_explicit_sample_error(monkeypatch, capsys):
 
     assert exc.value.code == 2
     assert "explicit errors" in capsys.readouterr().err
+
+
+def test_parse_log_rejects_explicit_sample_invalidation(monkeypatch, capsys):
+    invalid_sample = SimpleNamespace(error=None, invalidation="invalid scorer output")
+    log = make_log(samples=[invalid_sample])
+    monkeypatch.setattr(parse_eval, "read_eval_log", lambda _: log)
+
+    with pytest.raises(SystemExit) as exc:
+        parse_eval.parse_log("result.eval")
+
+    assert exc.value.code == 2
+    assert "invalidation signals" in capsys.readouterr().err
+
+
+def test_parse_log_rejects_incomplete_run(monkeypatch, capsys):
+    log = make_log()
+    log.results.completed_samples = 9
+    monkeypatch.setattr(parse_eval, "read_eval_log", lambda _: log)
+
+    with pytest.raises(SystemExit) as exc:
+        parse_eval.parse_log("result.eval")
+
+    assert exc.value.code == 2
+    assert "9 of 10 samples completed" in capsys.readouterr().err

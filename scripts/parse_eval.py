@@ -42,6 +42,13 @@ def parse_log(log_path: str) -> dict:
     if completed == 0:
         print("SKIP: 0 completed samples", file=sys.stderr)
         sys.exit(2)
+    total = log.results.total_samples or completed
+    if completed != total:
+        print(
+            f"SKIP: only {completed} of {total} samples completed",
+            file=sys.stderr,
+        )
+        sys.exit(2)
 
     failed_samples = [
         sample
