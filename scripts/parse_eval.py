@@ -43,12 +43,15 @@ def parse_log(log_path: str) -> dict:
         print("SKIP: 0 completed samples", file=sys.stderr)
         sys.exit(2)
 
-    # A sizeable all-wrong run is much more likely to indicate a broken
-    # scorer or authentication response than a genuine benchmark result.
-    if accuracy == 0.0 and completed >= 10:
+    failed_samples = [
+        sample
+        for sample in (log.samples or [])
+        if sample.error is not None or sample.invalidation is not None
+    ]
+    if failed_samples:
         print(
-            f"SKIP: 0% accuracy on {completed} samples — likely scorer, auth, "
-            "or rate limit failure",
+            f"SKIP: {len(failed_samples)} sample(s) contain explicit errors or "
+            "invalidation signals",
             file=sys.stderr,
         )
         sys.exit(2)
